@@ -1,0 +1,12 @@
+pyyaml
+pycocotools
+
+torch
+torchvision
+Pillow
+tqdm
+numpy
+opencv-python
+opencv-contrib-python
+
+git+https://github.com/facebookresearch/detectron2.git@v0.3
