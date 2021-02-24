@@ -1,3 +1,4 @@
+import os
 import typing
 import json
 
@@ -5,15 +6,16 @@ import constant
 
 
 # MARK: - JSON handling
-ANNOTATION_ID_KEY = "id"    ; """"""
-IMAGE_ID_KEY = "image_id"
-SEGMENTATION_PATH_KEY = "segmentation"
-CATEGORY_ID_KEY = "category_id"
-CATEGORY_NAME_KEY = "category_name"
-IS_CROWD_KEY = "iscrowd"
-AREA_KEY = "area"
-B_BOX_KEY = "bbox"
-FILENAME_KEY = "file_name";    """Image filename. Example: 'P0000.png'."""
+# Keys: https://github.com/facebookresearch/detectron2/blob/master/docs/tutorials/datasets.md
+ANNOTATION_ID_KEY: typing.Final = "id"    ; """"""
+IMAGE_ID_KEY: typing.Final = "image_id"
+SEGMENTATION_PATH_KEY: typing.Final = "segmentation"
+CATEGORY_ID_KEY: typing.Final = "category_id"
+CATEGORY_NAME_KEY: typing.Final = "category_name"
+IS_CROWD_KEY: typing.Final = "iscrowd"
+AREA_KEY: typing.Final = "area"
+B_BOX_KEY: typing.Final = "bbox"
+FILENAME_KEY: typing.Final = "file_name";    """Image filename. Example: 'P0000.png'."""
 
 
 def _read_json_contents(filename: str) -> typing.List[typing.Dict[str, typing.Any]]:
@@ -21,6 +23,22 @@ def _read_json_contents(filename: str) -> typing.List[typing.Dict[str, typing.An
         contents = json.load(f)
 
     return contents
+
+
+# MARK: - List files
+def _is_image(filename: str) -> bool:
+    for extension in constant.IMAGE_FILE_EXTENSIONS:
+        if (filename.endswith(extension)):
+            return True
+
+    return False
+
+
+def _get_image_filenames(image_dir: str) -> typing.List[str]:
+    filenames = os.listdir(image_dir)
+    filenames = [f for f in filenames if _is_image(f)]
+    filenames = [os.path.join(image_dir, f) for f in filenames]
+    return filenames
 
 
 # MARK: - Dataset

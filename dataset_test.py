@@ -6,7 +6,7 @@ import dataset
 import constant
 
 
-class DatasetTestCase (unittest.TestCase):
+class JsonTestCase (unittest.TestCase):
     def test_json_type(self):
         json_filename = os.path.join(constant.DATASET_ROOT_DIR, constant.TRAIN_JSON_FILENAME)
         json_contents = dataset._read_json_contents(json_filename)
@@ -111,6 +111,28 @@ class DatasetTestCase (unittest.TestCase):
                 image_filename = item[dataset.FILENAME_KEY]
                 image_filename = os.path.join(train_image_dir, image_filename)
                 self.assertTrue(os.path.isfile(image_filename))
+
+
+class FileTestCase (unittest.TestCase):
+    def test_is_image(self):
+        image_filenames = ["2.png", "P2106.png", "2.jpg", "P2106.jpg"]
+        non_image_filenames = ["2", "P2106.pn", "2.ini", "P2106.jpg2", ".DS_Store"]
+
+        for filename in image_filenames:
+            with self.subTest(filename=filename):
+                self.assertTrue(dataset._is_image(filename))
+
+        for filename in non_image_filenames:
+            with self.subTest(filename=filename):
+                self.assertFalse(dataset._is_image(filename))
+
+    def test_filenames(self):
+        train_image_dir = os.path.join(constant.DATASET_ROOT_DIR, constant.TRAIN_DATASET_SUB_DIR)
+        train_filenames = dataset._get_image_filenames(train_image_dir)
+        self.assertEqual(len(train_filenames), 198)
+        for filename in train_filenames:
+            with self.subTest(filename=filename):
+                self.assertTrue(os.path.isfile(filename))
 
 
 if __name__ == '__main__':
