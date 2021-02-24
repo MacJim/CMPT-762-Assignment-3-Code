@@ -134,6 +134,13 @@ class FileTestCase (unittest.TestCase):
             with self.subTest(filename=filename):
                 self.assertTrue(os.path.isfile(filename))
 
+        test_image_dir = os.path.join(constant.DATASET_ROOT_DIR, constant.TEST_DATASET_SUB_DIR)
+        test_filenames = dataset._get_image_filenames(test_image_dir)
+        self.assertEqual(len(test_filenames), 72)
+        for filename in test_filenames:
+            with self.subTest(filename=filename):
+                self.assertTrue(os.path.isfile(filename))
+
 
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
