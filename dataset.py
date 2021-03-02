@@ -6,18 +6,6 @@ import constant
 
 
 # MARK: - JSON handling
-# Keys: https://github.com/facebookresearch/detectron2/blob/master/docs/tutorials/datasets.md
-ANNOTATION_ID_KEY: typing.Final = "id"    ; """"""
-IMAGE_ID_KEY: typing.Final = "image_id"
-SEGMENTATION_PATH_KEY: typing.Final = "segmentation"
-CATEGORY_ID_KEY: typing.Final = "category_id"
-CATEGORY_NAME_KEY: typing.Final = "category_name"
-IS_CROWD_KEY: typing.Final = "iscrowd"
-AREA_KEY: typing.Final = "area"
-B_BOX_KEY: typing.Final = "bbox"
-FILENAME_KEY: typing.Final = "file_name";    """Image filename. Example: 'P0000.png'."""
-
-
 def _read_json_contents(filename: str) -> typing.List[typing.Dict[str, typing.Any]]:
     with open(filename, "r") as f:
         contents = json.load(f)

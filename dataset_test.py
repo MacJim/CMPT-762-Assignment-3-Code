@@ -25,15 +25,15 @@ class JsonTestCase (unittest.TestCase):
             with self.subTest(item=item):
                 self.assertEqual(len(item), 9)    # All items have this many key value pairs
 
-                self.assertIsInstance(item[dataset.ANNOTATION_ID_KEY], int)
-                self.assertIsInstance(item[dataset.IMAGE_ID_KEY], int)
-                self.assertIsInstance(item[dataset.SEGMENTATION_PATH_KEY], list)
-                self.assertIsInstance(item[dataset.CATEGORY_ID_KEY], int)
-                self.assertIsInstance(item[dataset.CATEGORY_NAME_KEY], str)
-                self.assertIsInstance(item[dataset.IS_CROWD_KEY], int)
-                self.assertIsInstance(item[dataset.AREA_KEY], int)
-                self.assertIsInstance(item[dataset.B_BOX_KEY], list)
-                self.assertIsInstance(item[dataset.FILENAME_KEY], str)
+                self.assertIsInstance(item[constant.ANNOTATION_ID_KEY], int)
+                self.assertIsInstance(item[constant.IMAGE_ID_KEY], int)
+                self.assertIsInstance(item[constant.SEGMENTATION_PATH_KEY], list)
+                self.assertIsInstance(item[constant.CATEGORY_ID_KEY], int)
+                self.assertIsInstance(item[constant.CATEGORY_NAME_KEY], str)
+                self.assertIsInstance(item[constant.IS_CROWD_KEY], int)
+                self.assertIsInstance(item[constant.AREA_KEY], int)
+                self.assertIsInstance(item[constant.B_BOX_KEY], list)
+                self.assertIsInstance(item[constant.FILENAME_KEY], str)
 
     def test_segmentation_paths(self):
         """
@@ -60,7 +60,7 @@ class JsonTestCase (unittest.TestCase):
 
         for item in json_contents:
             with self.subTest(item=item):
-                path_list = item[dataset.SEGMENTATION_PATH_KEY]
+                path_list = item[constant.SEGMENTATION_PATH_KEY]
 
                 self.assertIsInstance(path_list, list)
                 # self.assertEqual(len(path_list), 1)
@@ -76,7 +76,7 @@ class JsonTestCase (unittest.TestCase):
 
         for item in json_contents:
             with self.subTest(item=item):
-                b_boxes = item[dataset.B_BOX_KEY]
+                b_boxes = item[constant.B_BOX_KEY]
                 self.assertIsInstance(b_boxes, list)
                 self.assertEqual(len(b_boxes), 4)
 
@@ -90,9 +90,9 @@ class JsonTestCase (unittest.TestCase):
         image_filenames_and_segmentation_paths = defaultdict(int)
 
         for item in json_contents:
-            path_list = item[dataset.SEGMENTATION_PATH_KEY]
+            path_list = item[constant.SEGMENTATION_PATH_KEY]
             for _ in path_list:
-                image_filenames_and_segmentation_paths[item[dataset.FILENAME_KEY]] += 1
+                image_filenames_and_segmentation_paths[item[constant.FILENAME_KEY]] += 1
 
         self.assertGreater(len(image_filenames_and_segmentation_paths), 0)
 
@@ -108,7 +108,7 @@ class JsonTestCase (unittest.TestCase):
 
         for item in json_contents:
             with self.subTest(item=item):
-                image_filename = item[dataset.FILENAME_KEY]
+                image_filename = item[constant.FILENAME_KEY]
                 image_filename = os.path.join(train_image_dir, image_filename)
                 self.assertTrue(os.path.isfile(image_filename))
 
