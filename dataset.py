@@ -2,7 +2,7 @@ import os
 import typing
 import json
 
-import constant
+import constant.dataset_file
 
 
 # MARK: - JSON handling
@@ -15,7 +15,7 @@ def _read_json_contents(filename: str) -> typing.List[typing.Dict[str, typing.An
 
 # MARK: - List files
 def _is_image(filename: str) -> bool:
-    for extension in constant.IMAGE_FILE_EXTENSIONS:
+    for extension in constant.dataset_file.IMAGE_FILE_EXTENSIONS:
         if (filename.endswith(extension)):
             return True
 

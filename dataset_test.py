@@ -3,12 +3,12 @@ import unittest
 from collections import defaultdict
 
 import dataset
-import constant
+from constant.dataset_file import DATASET_ROOT_DIR, TRAIN_DATASET_SUB_DIR, TEST_DATASET_SUB_DIR, TRAIN_JSON_FILENAME, ANNOTATION_ID_KEY, IMAGE_ID_KEY, SEGMENTATION_PATH_KEY, CATEGORY_ID_KEY, CATEGORY_NAME_KEY, IS_CROWD_KEY, AREA_KEY, B_BOX_KEY, FILENAME_KEY
 
 
 class JsonTestCase (unittest.TestCase):
     def test_json_type(self):
-        json_filename = os.path.join(constant.DATASET_ROOT_DIR, constant.TRAIN_JSON_FILENAME)
+        json_filename = os.path.join(DATASET_ROOT_DIR, TRAIN_JSON_FILENAME)
         json_contents = dataset._read_json_contents(json_filename)
 
         self.assertIsNotNone(json_contents)
@@ -18,22 +18,22 @@ class JsonTestCase (unittest.TestCase):
                 self.assertIsInstance(item, dict)
 
     def test_json_keys(self):
-        json_filename = os.path.join(constant.DATASET_ROOT_DIR, constant.TRAIN_JSON_FILENAME)
+        json_filename = os.path.join(DATASET_ROOT_DIR, TRAIN_JSON_FILENAME)
         json_contents = dataset._read_json_contents(json_filename)
 
         for item in json_contents:
             with self.subTest(item=item):
                 self.assertEqual(len(item), 9)    # All items have this many key value pairs
 
-                self.assertIsInstance(item[constant.ANNOTATION_ID_KEY], int)
-                self.assertIsInstance(item[constant.IMAGE_ID_KEY], int)
-                self.assertIsInstance(item[constant.SEGMENTATION_PATH_KEY], list)
-                self.assertIsInstance(item[constant.CATEGORY_ID_KEY], int)
-                self.assertIsInstance(item[constant.CATEGORY_NAME_KEY], str)
-                self.assertIsInstance(item[constant.IS_CROWD_KEY], int)
-                self.assertIsInstance(item[constant.AREA_KEY], int)
-                self.assertIsInstance(item[constant.B_BOX_KEY], list)
-                self.assertIsInstance(item[constant.FILENAME_KEY], str)
+                self.assertIsInstance(item[ANNOTATION_ID_KEY], int)
+                self.assertIsInstance(item[IMAGE_ID_KEY], int)
+                self.assertIsInstance(item[SEGMENTATION_PATH_KEY], list)
+                self.assertIsInstance(item[CATEGORY_ID_KEY], int)
+                self.assertIsInstance(item[CATEGORY_NAME_KEY], str)
+                self.assertIsInstance(item[IS_CROWD_KEY], int)
+                self.assertIsInstance(item[AREA_KEY], int)
+                self.assertIsInstance(item[B_BOX_KEY], list)
+                self.assertIsInstance(item[FILENAME_KEY], str)
 
     def test_segmentation_paths(self):
         """
@@ -55,12 +55,12 @@ class JsonTestCase (unittest.TestCase):
         Since each entry only contains a single bounding box, that should mean: some bounding boxes correspond to multiple segmentation paths.
         Or it could mean: each entry is an instance.
         """
-        json_filename = os.path.join(constant.DATASET_ROOT_DIR, constant.TRAIN_JSON_FILENAME)
+        json_filename = os.path.join(DATASET_ROOT_DIR, TRAIN_JSON_FILENAME)
         json_contents = dataset._read_json_contents(json_filename)
 
         for item in json_contents:
             with self.subTest(item=item):
-                path_list = item[constant.SEGMENTATION_PATH_KEY]
+                path_list = item[SEGMENTATION_PATH_KEY]
 
                 self.assertIsInstance(path_list, list)
                 # self.assertEqual(len(path_list), 1)
@@ -71,12 +71,12 @@ class JsonTestCase (unittest.TestCase):
                 self.assertEqual(len(path) % 2, 0)    # (x0, y0, x1, y1, ...) Length must be dividable by 2.
 
     def test_bounding_boxes(self):
-        json_filename = os.path.join(constant.DATASET_ROOT_DIR, constant.TRAIN_JSON_FILENAME)
+        json_filename = os.path.join(DATASET_ROOT_DIR, TRAIN_JSON_FILENAME)
         json_contents = dataset._read_json_contents(json_filename)
 
         for item in json_contents:
             with self.subTest(item=item):
-                b_boxes = item[constant.B_BOX_KEY]
+                b_boxes = item[B_BOX_KEY]
                 self.assertIsInstance(b_boxes, list)
                 self.assertEqual(len(b_boxes), 4)
 
@@ -84,15 +84,15 @@ class JsonTestCase (unittest.TestCase):
         """
         Most images have more than 1 segmentation paths.
         """
-        json_filename = os.path.join(constant.DATASET_ROOT_DIR, constant.TRAIN_JSON_FILENAME)
+        json_filename = os.path.join(DATASET_ROOT_DIR, TRAIN_JSON_FILENAME)
         json_contents = dataset._read_json_contents(json_filename)
 
         image_filenames_and_segmentation_paths = defaultdict(int)
 
         for item in json_contents:
-            path_list = item[constant.SEGMENTATION_PATH_KEY]
+            path_list = item[SEGMENTATION_PATH_KEY]
             for _ in path_list:
-                image_filenames_and_segmentation_paths[item[constant.FILENAME_KEY]] += 1
+                image_filenames_and_segmentation_paths[item[FILENAME_KEY]] += 1
 
         self.assertGreater(len(image_filenames_and_segmentation_paths), 0)
 
@@ -101,14 +101,14 @@ class JsonTestCase (unittest.TestCase):
                 self.assertGreaterEqual(path_count, 1)
 
     def test_train_image_file_existence(self):
-        json_filename = os.path.join(constant.DATASET_ROOT_DIR, constant.TRAIN_JSON_FILENAME)
+        json_filename = os.path.join(DATASET_ROOT_DIR, TRAIN_JSON_FILENAME)
         json_contents = dataset._read_json_contents(json_filename)
 
-        train_image_dir = os.path.join(constant.DATASET_ROOT_DIR, constant.TRAIN_DATASET_SUB_DIR)
+        train_image_dir = os.path.join(DATASET_ROOT_DIR, TRAIN_DATASET_SUB_DIR)
 
         for item in json_contents:
             with self.subTest(item=item):
-                image_filename = item[constant.FILENAME_KEY]
+                image_filename = item[FILENAME_KEY]
                 image_filename = os.path.join(train_image_dir, image_filename)
                 self.assertTrue(os.path.isfile(image_filename))
 
@@ -126,15 +126,15 @@ class FileTestCase (unittest.TestCase):
             with self.subTest(filename=filename):
                 self.assertFalse(dataset._is_image(filename))
 
-    def test_filenames(self):
-        train_image_dir = os.path.join(constant.DATASET_ROOT_DIR, constant.TRAIN_DATASET_SUB_DIR)
+    def test_file_existence(self):
+        train_image_dir = os.path.join(DATASET_ROOT_DIR, TRAIN_DATASET_SUB_DIR)
         train_filenames = dataset._get_image_filenames(train_image_dir)
         self.assertEqual(len(train_filenames), 198)
         for filename in train_filenames:
             with self.subTest(filename=filename):
                 self.assertTrue(os.path.isfile(filename))
 
-        test_image_dir = os.path.join(constant.DATASET_ROOT_DIR, constant.TEST_DATASET_SUB_DIR)
+        test_image_dir = os.path.join(DATASET_ROOT_DIR, TEST_DATASET_SUB_DIR)
         test_filenames = dataset._get_image_filenames(test_image_dir)
         self.assertEqual(len(test_filenames), 72)
         for filename in test_filenames:
