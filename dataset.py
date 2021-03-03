@@ -49,7 +49,7 @@ def _add_json_entry_annotations_to_info_dict(json_entry: typing.Dict[str, typing
         constant.detectron.B_BOX_KEY: json_entry[constant.dataset_file.B_BOX_KEY],
         constant.detectron.B_BOX_MODE_KEY: constant.detectron.DESIGNATED_BOX_MODE,
         constant.detectron.SEGMENTATION_PATH_KEY: json_entry[constant.detectron.SEGMENTATION_PATH_KEY],
-        constant.detectron.CATEGORY_ID_KEY: constant.dataset_file.CATEGORY_ID_KEY,
+        constant.detectron.CATEGORY_ID_KEY: constant.detectron.DESIGNATED_CATEGORY_ID,
     }
 
     info_dict[constant.detectron.ANNOTATIONS_KEY].append(annotation)
@@ -113,10 +113,10 @@ def register_datasets():
     Register the train and test datasets.
     """
     detectron2.data.DatasetCatalog.register(constant.detectron.TRAIN_DATASET_NAME, lambda set_name="train": get_detection_data(set_name))
-    detectron2.data.MetadataCatalog.get(constant.detectron.TRAIN_DATASET_NAME).things_classes = [constant.dataset_file.DESIGNATED_CATEGORY_NAME]
+    detectron2.data.MetadataCatalog.get(constant.detectron.TRAIN_DATASET_NAME).thing_classes = [constant.dataset_file.DESIGNATED_CATEGORY_NAME]
 
     detectron2.data.DatasetCatalog.register(constant.detectron.TEST_DATASET_NAME, lambda set_name="test": get_detection_data(set_name))
-    detectron2.data.MetadataCatalog.get(constant.detectron.TEST_DATASET_NAME).things_classes = [constant.dataset_file.DESIGNATED_CATEGORY_NAME]
+    detectron2.data.MetadataCatalog.get(constant.detectron.TEST_DATASET_NAME).thing_classes = [constant.dataset_file.DESIGNATED_CATEGORY_NAME]
 
 
 if __name__ == '__main__':
