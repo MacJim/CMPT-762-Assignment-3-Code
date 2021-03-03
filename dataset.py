@@ -2,7 +2,10 @@ import os
 import typing
 import json
 
+from PIL import Image
+
 import constant.dataset_file
+import constant.detectron
 
 
 # MARK: - JSON handling
@@ -30,6 +33,27 @@ def _get_image_filenames(image_dir: str) -> typing.List[str]:
 
 
 # MARK: - Dataset
+def _add_json_entry_annotations_to_info_dict(json_entry: typing.Dict[str, typing.Any], info_dict: typing.Dict[str, typing.Any]):
+    """
+    Adds the information in a JSON entry to the info dictionary.
+
+    :param json_entry:
+    :param info_dict:
+    :return: None
+    """
+    if constant.detectron.ANNOTATIONS_KEY not in info_dict:
+        info_dict[constant.detectron.ANNOTATIONS_KEY] = []
+
+    annotation = {
+        constant.detectron.B_BOX_KEY: json_entry[constant.dataset_file.B_BOX_KEY],
+        constant.detectron.B_BOX_MODE_KEY: constant.detectron.DESIGNATED_BOX_MODE,
+        constant.detectron.SEGMENTATION_PATH_KEY: json_entry[constant.detectron.SEGMENTATION_PATH_KEY],
+        constant.detectron.CATEGORY_ID_KEY: constant.dataset_file.CATEGORY_ID_KEY,
+    }
+
+    info_dict[constant.detectron.ANNOTATIONS_KEY].append(annotation)
+
+
 def get_detection_data(set_name: typing.Literal["train", "val", "test"]):
     """
     This function should return a list of data samples in which each sample is a dictionary.
@@ -40,8 +64,49 @@ def get_detection_data(set_name: typing.Literal["train", "val", "test"]):
     :param set_name: "train", "val", "test"
     :return:
     """
-    # TODO: approx 35 lines
+    # Get filenames
+    if (set_name == "test"):
+        image_dir = os.path.join(constant.dataset_file.DATASET_ROOT_DIR, constant.dataset_file.TEST_DATASET_SUB_DIR)
+        json_contents = []
 
-    return_value = []
+    else:
+        image_dir = os.path.join(constant.dataset_file.DATASET_ROOT_DIR, constant.dataset_file.TRAIN_DATASET_SUB_DIR)
+
+        train_json_filename = os.path.join(constant.dataset_file.DATASET_ROOT_DIR, constant.dataset_file.TRAIN_JSON_FILENAME)
+        json_contents = _read_json_contents(train_json_filename)
+
+    image_filenames = _get_image_filenames(image_dir)
+
+    return_value = [{constant.detectron.FILENAME_KEY: f} for f in image_filenames]
+
+    # Add file height and width info by reading the files.
+    for info_dict in return_value:
+        image: Image.Image = Image.open(info_dict[constant.detectron.FILENAME_KEY])
+        info_dict[constant.detectron.WIDTH_KEY], info_dict[constant.detectron.HEIGHT_KEY] = image.size    # PIL is width first
+
+    if json_contents:
+        # Train data.
+        # Add image ID and annotations.
+        for json_entry in json_contents:
+            filename_json = json_entry[constant.dataset_file.FILENAME_KEY]
+
+            for info_dict in return_value:
+                filename_info_dict = os.path.basename(info_dict[constant.detectron.FILENAME_KEY])
+                if (filename_json == filename_info_dict):
+                    # if ((constant.detectron.IMAGE_ID_KEY in info_dict) and (info_dict[constant.detectron.IMAGE_ID_KEY] != json_entry[constant.dataset_file.IMAGE_ID_KEY])):
+                    #     print("Contradiction!")    # No contradictions. But image IDs seem quite random and don't start at 0.
+                    info_dict[constant.detectron.IMAGE_ID_KEY] = json_entry[constant.dataset_file.IMAGE_ID_KEY]
+                    _add_json_entry_annotations_to_info_dict(json_entry, info_dict)
+
+    else:
+        # Test data.
+        # Add automatic image ID.
+        for i, info_dict in enumerate(return_value):
+            info_dict[constant.detectron.IMAGE_ID_KEY] = i
 
     return return_value
+
+
+if __name__ == '__main__':
+    get_detection_data("train")
+    # get_detection_data("test")
