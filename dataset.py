@@ -81,8 +81,8 @@ def get_detection_data(set_name: typing.Literal["train", "val", "test"]):
 
     # Add file height and width info by reading the files.
     for info_dict in return_value:
-        image: Image.Image = Image.open(info_dict[constant.detectron.FILENAME_KEY])
-        info_dict[constant.detectron.WIDTH_KEY], info_dict[constant.detectron.HEIGHT_KEY] = image.size    # PIL is width first
+        with Image.open(info_dict[constant.detectron.FILENAME_KEY]) as image:    # Auto close
+            info_dict[constant.detectron.WIDTH_KEY], info_dict[constant.detectron.HEIGHT_KEY] = image.size    # PIL is width first
 
     if json_contents:
         # Train data.
