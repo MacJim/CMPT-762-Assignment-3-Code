@@ -171,11 +171,53 @@ class DatasetTestCase (unittest.TestCase):
             with self.subTest(filename=filename):
                 self.assertTrue(os.path.isfile(filename))
 
+    def test_train_image_ids(self):
+        """
+        Train images do have unique IDs.
+        """
+        existing_image_ids = []
+        for info_dict in self.train_info_dicts:
+            image_id = info_dict[constant.detectron.IMAGE_ID_KEY]
+            with self.subTest(image_id=image_id):
+                if image_id not in existing_image_ids:
+                    existing_image_ids.append(image_id)
+                else:
+                    self.fail(f"{image_id} already exists!")
+
     def test_test_image_ids(self):
         for i, info_dict in enumerate(self.test_info_dicts):
             image_id = info_dict[constant.detectron.IMAGE_ID_KEY]
             with self.subTest(i=i, image_id=image_id):
                 self.assertEqual(i, image_id)
+
+    def test_train_image_keys(self):
+        for info_dict in self.train_info_dicts:
+            with self.subTest():
+                self.assertIn(constant.detectron.FILENAME_KEY, info_dict)
+                self.assertIn(constant.detectron.IMAGE_ID_KEY, info_dict)
+                self.assertIn(constant.detectron.HEIGHT_KEY, info_dict)
+                self.assertIn(constant.detectron.WIDTH_KEY, info_dict)
+
+                self.assertIn(constant.detectron.ANNOTATIONS_KEY, info_dict)
+                for annotation in info_dict[constant.detectron.ANNOTATIONS_KEY]:
+                    with self.subTest():
+                        self.assertIn(constant.detectron.B_BOX_KEY, annotation)
+                        self.assertIn(constant.detectron.B_BOX_MODE_KEY, annotation)
+                        self.assertIn(constant.detectron.SEGMENTATION_PATH_KEY, annotation)
+                        self.assertIn(constant.detectron.CATEGORY_ID_KEY, annotation)
+
+    def test_test_image_keys(self):
+        """
+        Test images have no annotations.
+        """
+        for info_dict in self.test_info_dicts:
+            with self.subTest():
+                self.assertIn(constant.detectron.FILENAME_KEY, info_dict)
+                self.assertIn(constant.detectron.IMAGE_ID_KEY, info_dict)
+                self.assertIn(constant.detectron.HEIGHT_KEY, info_dict)
+                self.assertIn(constant.detectron.WIDTH_KEY, info_dict)
+
+                self.assertNotIn(constant.detectron.ANNOTATIONS_KEY, info_dict)
 
 
 if __name__ == '__main__':
