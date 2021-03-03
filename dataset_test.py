@@ -2,6 +2,8 @@ import os
 import unittest
 from collections import defaultdict
 
+import detectron2.data
+
 import dataset
 import constant.dataset_file
 import constant.detectron
@@ -218,6 +220,20 @@ class DatasetTestCase (unittest.TestCase):
                 self.assertIn(constant.detectron.WIDTH_KEY, info_dict)
 
                 self.assertNotIn(constant.detectron.ANNOTATIONS_KEY, info_dict)
+
+
+class DatasetRegistrationTestCase (unittest.TestCase):
+    def setUp(self) -> None:
+        super(DatasetRegistrationTestCase, self).setUp()
+
+        dataset.register_datasets()
+
+    def test_lengths(self):
+        train_dataset = detectron2.data.DatasetCatalog.get(constant.detectron.TRAIN_DATASET_NAME)
+        test_dataset = detectron2.data.DatasetCatalog.get(constant.detectron.TEST_DATASET_NAME)
+
+        self.assertEqual(len(train_dataset), 198)
+        self.assertEqual(len(test_dataset), 72)
 
 
 if __name__ == '__main__':

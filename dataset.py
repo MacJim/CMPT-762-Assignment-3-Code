@@ -3,6 +3,7 @@ import typing
 import json
 
 from PIL import Image
+import detectron2.data
 
 import constant.dataset_file
 import constant.detectron
@@ -105,6 +106,17 @@ def get_detection_data(set_name: typing.Literal["train", "val", "test"]):
             info_dict[constant.detectron.IMAGE_ID_KEY] = i
 
     return return_value
+
+
+def register_datasets():
+    """
+    Register the train and test datasets.
+    """
+    detectron2.data.DatasetCatalog.register(constant.detectron.TRAIN_DATASET_NAME, lambda set_name="train": get_detection_data(set_name))
+    detectron2.data.MetadataCatalog.get(constant.detectron.TRAIN_DATASET_NAME).things_classes = [constant.dataset_file.DESIGNATED_CATEGORY_NAME]
+
+    detectron2.data.DatasetCatalog.register(constant.detectron.TEST_DATASET_NAME, lambda set_name="test": get_detection_data(set_name))
+    detectron2.data.MetadataCatalog.get(constant.detectron.TEST_DATASET_NAME).things_classes = [constant.dataset_file.DESIGNATED_CATEGORY_NAME]
 
 
 if __name__ == '__main__':
