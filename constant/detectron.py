@@ -29,6 +29,10 @@ https://detectron2.readthedocs.io/en/latest/_modules/detectron2/structures/boxes
 
 `XYWH_REL` means range [0, 1] and is not yet supported.
 """
+DESIGNATED_CATEGORY_ID: typing.Final = 0
+"""
+We only have a single class: plane.
+"""
 
 
 # MARK: Detectron dataset names
