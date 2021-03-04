@@ -6,18 +6,19 @@ from detectron2 import model_zoo
 from detectron2.engine import DefaultTrainer
 
 import constant.detectron
+import dataset
 
 
 def _create_output_dir(dir_name: str):
     if (os.path.exists(dir_name)):
         if (os.path.isdir(dir_name)):
-            print(f"Using existing output dir {dir_name}")
+            print(f"Using existing output dir `{dir_name}`")
             print(f"Files in existing output dir may be overwritten.")
         else:
-            raise FileExistsError(f"Output dir {dir_name} is a file or link!")
+            raise FileExistsError(f"Output dir `{dir_name}` is a file or link!")
     else:
         os.makedirs(dir_name)
-        print(f"Created output dir {dir_name}")
+        print(f"Created output dir `{dir_name}`")
 
 
 # MARK: - Config
@@ -56,6 +57,9 @@ def get_baseline_config() -> detectron2.config.config.CfgNode:
 
 # MARK: - Main
 def main():
+    # Register datasets.
+    dataset.register_datasets()
+
     # Get config.
     cfg = get_baseline_config()
 
