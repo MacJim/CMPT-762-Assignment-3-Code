@@ -13,6 +13,7 @@ from detectron2.utils.visualizer import Visualizer
 
 import dataset
 import constant.detectron
+from helper.visualization import save_visualization
 
 
 def main():
@@ -20,15 +21,15 @@ def main():
 
     train_dataset = detectron2.data.DatasetCatalog.get(constant.detectron.TRAIN_DATASET_NAME)
     train_metadata = detectron2.data.MetadataCatalog.get(constant.detectron.TRAIN_DATASET_NAME)
-    for i, info_dict in enumerate(random.sample(train_dataset, 3)):
+    for info_dict in random.sample(train_dataset, 3):
         image = cv2.imread(info_dict[constant.detectron.FILENAME_KEY])
         visualizer = Visualizer(image[:, :, ::-1], metadata=train_metadata, scale=0.5)
         out = visualizer.draw_dataset_dict(info_dict)
         out_image = out.get_image()[:, :, ::-1]
 
-        out_filename = f"/tmp/{i + 1}.png"
-        cv2.imwrite(out_filename, out_image)
-        print(f"Visualization saved to {out_filename}")
+        base_filename = os.path.basename(info_dict[constant.detectron.FILENAME_KEY])
+        out_filename = os.path.join("/tmp/visualization", base_filename)
+        save_visualization(out_filename, out_image)
 
 
 if __name__ == '__main__':

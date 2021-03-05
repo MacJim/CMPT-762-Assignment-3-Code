@@ -13,6 +13,7 @@ import cv2
 from object_detection_train import get_baseline_config
 import dataset
 import constant.detectron
+from helper.visualization import save_visualization
 
 
 def main():
@@ -29,10 +30,11 @@ def main():
         outputs = predictor(im)    # Format is documented at https://detectron2.readthedocs.io/tutorials/models.html#model-output-format
         v = Visualizer(im[:, :, ::-1], metadata=metadata_dict, scale=0.5, instance_mode=ColorMode.IMAGE_BW)
         out = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+        out_image = out.get_image()[:, :, ::-1]
 
-        out_filename = f"/tmp/{i + 1}.png"
-        cv2.imwrite(out_filename, out.get_image()[:, :, ::-1])
-        print(f"Visualization saved to {out_filename}")
+        base_filename = os.path.basename(d[constant.detectron.FILENAME_KEY])
+        out_filename = os.path.join("/tmp/object_detection_inference", base_filename)
+        save_visualization(out_filename, out_image)
 
 
 if __name__ == '__main__':
