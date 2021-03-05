@@ -38,3 +38,7 @@ We only have a single class: plane.
 # MARK: Detectron dataset names
 TRAIN_DATASET_NAME: typing.Final = "data_detection_train"
 TEST_DATASET_NAME: typing.Final = "data_detection_test"
+
+
+# MARK: Saved checkpoints
+FINAL_CHECKPOINT_FILENAME: typing.Final = "model_final.pth"
