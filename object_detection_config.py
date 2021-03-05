@@ -24,6 +24,26 @@ def _create_output_dir(dir_name: str):
         print(f"Created output dir `{dir_name}`")
 
 
+def _get_final_checkpoint_filename(output_dir: str) -> str:
+    """
+    :param output_dir: Output directory.
+    :return: Path of the final checkpoint file.
+    """
+    if (not os.path.exists(output_dir)):
+        raise FileNotFoundError(f"Output dir `{output_dir}` doesn't exist!")
+    elif (not os.path.isdir(output_dir)):
+        raise ValueError(f"Output dir `{output_dir}` exists, but is not a directory.")
+
+    filename = os.path.join(output_dir, constant.detectron.FINAL_CHECKPOINT_FILENAME)
+    if (os.path.isfile(filename)):
+        print(f"Using checkpoint file `{filename}`")
+        return filename
+    elif (not os.path.exists(filename)):
+        raise FileNotFoundError(f"Checkpoint file `{filename}` does not exist!")
+    else:
+        raise ValueError(f"Checkpoint file `{filename}` exists, but is not a file.")
+
+
 # MARK: - Baseline config
 BASELINE_MODEL_YML: typing.Final = "COCO-Detection/faster_rcnn_R_101_FPN_3x.yaml"
 BASELINE_OUTPUT_DIR: typing.Final = "output"
@@ -40,16 +60,14 @@ def get_baseline_config(train=True) -> detectron2.config.config.CfgNode:
         _create_output_dir(BASELINE_OUTPUT_DIR)
     else:
         # Inference: the output dir must already exist.
-        if (not os.path.isdir(BASELINE_OUTPUT_DIR)):
-            raise FileNotFoundError(f"Output dir `{BASELINE_OUTPUT_DIR}` doesn't exist!")
-        else:
-            print(f"Using output dir `{BASELINE_OUTPUT_DIR}`")
+        final_checkpoint_filename = _get_final_checkpoint_filename(BASELINE_OUTPUT_DIR)
 
     # Create configuration.
     cfg = detectron2.config.get_cfg()    # This is just a copy of the default config.
 
     cfg.merge_from_file(model_zoo.get_config_file(BASELINE_MODEL_YML))
-    # cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(model_yml)    # I don't think I should load the weights in the baseline.
+
+    cfg.OUTPUT_DIR = BASELINE_OUTPUT_DIR
 
     cfg.DATASETS.TRAIN = (constant.detectron.TRAIN_DATASET_NAME,)
     cfg.DATASETS.TEST = (constant.detectron.TEST_DATASET_NAME,)
@@ -62,7 +80,9 @@ def get_baseline_config(train=True) -> detectron2.config.config.CfgNode:
 
     cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512    # Number of regions per image used to train RPN (Region Proposal Network)
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1    # We only have a single plane class
-
-    cfg.OUTPUT_DIR = BASELINE_OUTPUT_DIR
+    # cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(model_yml)    # I don't think I should load the weights in the baseline.
+    if (not train):
+        cfg.MODEL.WEIGHTS = final_checkpoint_filename
+        cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.6
 
     return cfg
