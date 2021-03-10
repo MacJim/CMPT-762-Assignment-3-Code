@@ -3,6 +3,8 @@ import unittest
 from collections import defaultdict
 
 import detectron2.data
+import numpy as np
+import matplotlib.pyplot as plt
 
 import dataset
 import constant.dataset_file
@@ -220,6 +222,62 @@ class DatasetTestCase (unittest.TestCase):
                 self.assertIn(constant.detectron.WIDTH_KEY, info_dict)
 
                 self.assertNotIn(constant.detectron.ANNOTATIONS_KEY, info_dict)
+
+    def test_train_bounding_box_attributes(self):
+        """
+        Find the min/max width, min
+        """
+        widths = []
+        heights = []
+        sizes = []
+        aspect_ratios = []
+
+        for info_dict in self.train_info_dicts:
+            annotations = info_dict[constant.detectron.ANNOTATIONS_KEY]
+
+            for annotation in annotations:
+                with self.subTest():
+                    b_box_mode = annotation[constant.detectron.B_BOX_MODE_KEY]
+                    self.assertEqual(b_box_mode, constant.detectron.DESIGNATED_BOX_MODE)
+
+                    b_box = annotation[constant.detectron.B_BOX_KEY]
+                    width = b_box[2]
+                    height = b_box[3]
+
+                    widths.append(width)
+                    heights.append(height)
+                    sizes.append(width * height)
+                    aspect_ratios.append(width / height)
+
+        width_height_bin_edges = [0, 10, 25, 50, 100, 200, 400, 800, 1200, 10000]
+        size_bin_edges = [0, 10, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000, 100000000]
+        aspect_ratio_bin_edges = [(i / 10) for i in range(0, 11)] + [(10 / i) for i in reversed(range(1, 10))] + [1000000]
+
+        plt.figure(figsize=(15.0, 9.0))    # width, height
+
+        hist, _ = np.histogram(widths, width_height_bin_edges)
+        plt.barh(range(len(hist)), hist, tick_label=[f"{width_height_bin_edges[i]} ~ {width_height_bin_edges[i + 1]}" for i, _ in enumerate(hist)])
+        plt.gca().set(title=f"Widths: max: {max(widths)}, min: {min(widths)}, median: {np.median(widths)}, average: {np.average(widths):.3f}")
+        plt.savefig("/tmp/widths.png")
+        plt.clf()
+
+        hist, _ = np.histogram(heights, width_height_bin_edges)
+        plt.barh(range(len(hist)), hist, tick_label=[f"{width_height_bin_edges[i]} ~ {width_height_bin_edges[i + 1]}" for i, _ in enumerate(hist)])
+        plt.gca().set(title=f"Heights: max: {max(heights)}, min: {min(heights)}, median: {np.median(heights)}, average: {np.average(heights):.3f}")
+        plt.savefig("/tmp/heights.png")
+        plt.clf()
+
+        hist, _ = np.histogram(sizes, size_bin_edges)
+        plt.barh(range(len(hist)), hist, tick_label=[f"{size_bin_edges[i]} ~ {size_bin_edges[i + 1]}" for i, _ in enumerate(hist)])
+        plt.gca().set(title=f"Sizes: max: {max(sizes)}, min: {min(sizes)}, median: {np.median(sizes)}, average: {np.average(sizes):.3f}")
+        plt.savefig("/tmp/sizes.png")
+        plt.clf()
+
+        hist, _ = np.histogram(aspect_ratios, aspect_ratio_bin_edges)
+        plt.barh(range(len(hist)), hist, tick_label=[f"{aspect_ratio_bin_edges[i]:.3f} ~ {aspect_ratio_bin_edges[i + 1]:.3f}" for i, _ in enumerate(hist)])
+        plt.gca().set(title=f"Aspect ratios (width/height): max: {max(aspect_ratios):.3f}, min: {min(aspect_ratios):.3f}, median: {np.median(aspect_ratios):.3f}, average: {np.average(aspect_ratios):.3f}")
+        plt.savefig("/tmp/aspect_ratios.png")
+        plt.clf()
 
 
 class DatasetRegistrationTestCase (unittest.TestCase):
