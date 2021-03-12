@@ -15,6 +15,7 @@ from detectron2.engine import DefaultTrainer
 from detectron2.data import DatasetMapper, build_detection_train_loader, detection_utils
 import detectron2.data.transforms as T
 from PIL import Image
+import numpy as np
 
 import constant.detectron
 import helper.bounding_box
@@ -138,7 +139,65 @@ class CustomTrainer (DefaultTrainer):
         super(CustomTrainer, self).__init__(get_custom_config(True))
 
     @classmethod
-    def build_train_loader(cls, cfg: detectron2.config.config.CfgNode) -> typing.Iterable:
+    def build_train_loader(cls, cfg):
+        def custom_mapper(dataset_dict: typing.Dict[str, typing.Any]):
+            """
+            Naively calls the default mapper.
+
+            TODO: This solution has a major flaw: segmentation boxes may be cut and make the object in it incomplete.
+
+            :param dataset_dict:
+            :return:
+            """
+            image_array: np.ndarray = detection_utils.read_image(dataset_dict["file_name"], format="BGR")    # HWC image
+
+            max_y0 = image_array.shape[0] - CUSTOM_CONFIG_CROP_PATCH_HEIGHT
+            if (max_y0 < 0):
+                y0 = 0
+                height = image_array.shape[0]
+            else:
+                y0 = random.randint(0, max_y0)
+                height = CUSTOM_CONFIG_CROP_PATCH_HEIGHT
+
+            max_x0 = image_array.shape[1] - CUSTOM_CONFIG_CROP_PATCH_WIDTH
+            if (max_x0 < 0):
+                x0 = 0
+                width = image_array.shape[1]
+            else:
+                x0 = random.randint(0, max_x0)
+                width = CUSTOM_CONFIG_CROP_PATCH_WIDTH
+
+            # Just call the default mapper.
+            mapper = DatasetMapper(cfg, is_train=True, augmentations=[
+                T.RandomBrightness(0.9, 1.1),
+                T.RandomCrop("absolute", (height, width)),
+            ])
+            return_value = mapper(dataset_dict)
+            return return_value
+
+            # augs = T.AugmentationList([
+            #     T.RandomBrightness(0.9, 1.1),
+            #     T.RandomCrop("absolute", (height, width)),
+            # ])
+
+            # aug_input = T.AugInput(image_array)
+            # transform = augs(aug_input)
+            #
+            # image_tensor: torch.Tensor = torch.from_numpy(aug_input.image.transpose(2, 0, 1))
+            #
+            # annotations = [detection_utils.transform_instance_annotations(annotation, [transform], image_tensor.shape[1:]) for annotation in dataset_dict[constant.detectron.ANNOTATIONS_KEY]]
+            # annotation_instances = detection_utils.annotations_to_instances(annotations, image_tensor.shape[1:])
+            #
+            # return {
+            #     "image": image_tensor,
+            #     "instances": annotation_instances,
+            # }
+
+        data_loader = build_detection_train_loader(cfg, mapper=custom_mapper)
+        return data_loader
+
+    @classmethod
+    def build_train_loader_legacy(cls, cfg: detectron2.config.config.CfgNode) -> typing.Iterable:
         """
         https://detectron2.readthedocs.io/en/latest/tutorials/data_loading.html
         """
@@ -156,14 +215,14 @@ class CustomTrainer (DefaultTrainer):
             max_x0 = width - CUSTOM_CONFIG_CROP_PATCH_WIDTH
             max_y0 = height - CUSTOM_CONFIG_CROP_PATCH_HEIGHT
 
-            if (max_x0 > 0):
+            if (max_x0 >= 0):
                 x0 = random.randint(0, max_x0)
                 x1 = x0 + CUSTOM_CONFIG_CROP_PATCH_WIDTH
             else:
                 x0 = 0
                 x1 = width - 1
 
-            if (max_y0 > 0):
+            if (max_y0 >= 0):
                 y0 = random.randint(0, max_y0)
                 y1 = y0 + CUSTOM_CONFIG_CROP_PATCH_HEIGHT
             else:
