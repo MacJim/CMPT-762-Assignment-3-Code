@@ -16,7 +16,7 @@ import torch
 import dataset
 import constant.detectron
 from helper.visualization import save_visualization
-from object_detection_config import get_baseline_config, get_custom_config, CustomTrainer
+from object_detection_config import get_baseline_config, get_naive_config, NaiveTrainer
 
 
 def visualize_raw_dataset():
@@ -41,8 +41,8 @@ def visualize_data_loader():
     # cfg = get_baseline_config()
     # train_dataloader = DefaultTrainer.build_train_loader(cfg)
 
-    cfg = get_custom_config()
-    train_dataloader = CustomTrainer.build_train_loader(cfg)
+    cfg = get_naive_config()
+    train_dataloader = NaiveTrainer.build_train_loader(cfg)
 
     for i, batch in enumerate(train_dataloader):
         if (i > 3):

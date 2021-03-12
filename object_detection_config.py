@@ -99,35 +99,30 @@ def get_baseline_config(train=True) -> detectron2.config.config.CfgNode:
     return cfg
 
 
-# MARK: - Custom config and custom dataloader
-CUSTOM_MODEL_YML: typing.Final = "COCO-Detection/faster_rcnn_X_101_FPN_3x.yaml"    # Not sure if I should use 152 layers.
+# MARK: - Naive config and dataloader
+NAIVE_MODEL_YML: typing.Final = "COCO-Detection/faster_rcnn_X_101_FPN_3x.yaml"    # Not sure if I should use 152 layers.
 
-CUSTOM_CONFIG_OUTPUT_DIR: typing.Final = "output"    # Really don't want to change the default output dir.
+NAIVE_OUTPUT_DIR: typing.Final = "output"    # Really don't want to change the default output dir.
 
-CUSTOM_CONFIG_CROP_PATCH_WIDTH: typing.Final = 800
-CUSTOM_CONFIG_CROP_PATCH_HEIGHT: typing.Final = 800
-CUSTOM_CROP_B_BOX_IOU_THRESHOLD: typing.Final = 0.5;    """Bounding boxes in cropped patch must have this much IoU with the original box."""
-
-CUSTOM_CONFIG_AUGMENTATIONS: typing.Final = []
-"""
-TODO: https://detectron2.readthedocs.io/en/latest/tutorials/augmentation.html
-"""
+NAIVE_CROP_PATCH_WIDTH: typing.Final = 800
+NAIVE_CROP_PATCH_HEIGHT: typing.Final = 800
+NAIVE_CROP_B_BOX_IOU_THRESHOLD: typing.Final = 0.5;    """Bounding boxes in cropped patch must have this much IoU with the original box."""
 
 
-def get_custom_config(train=True) -> detectron2.config.config.CfgNode:
+def get_naive_config(train=True) -> detectron2.config.config.CfgNode:
     return get_baseline_config()    # TODO: Remove
 
     if (train):
-        _create_output_dir(CUSTOM_CONFIG_OUTPUT_DIR)
+        _create_output_dir(NAIVE_OUTPUT_DIR)
     else:
-        final_checkpoint_filename = _get_final_checkpoint_filename(CUSTOM_CONFIG_OUTPUT_DIR)
+        final_checkpoint_filename = _get_final_checkpoint_filename(NAIVE_OUTPUT_DIR)
 
     cfg = detectron2.config.get_cfg()  # This is just a copy of the default config.
 
     return cfg
 
 
-class CustomTrainer (DefaultTrainer):
+class NaiveTrainer (DefaultTrainer):
     """
     Custom trainer tutorials:
 
@@ -136,11 +131,11 @@ class CustomTrainer (DefaultTrainer):
     - https://github.com/facebookresearch/detectron2/blob/master/projects/DeepLab/train_net.py
     """
     def __init__(self):
-        super(CustomTrainer, self).__init__(get_custom_config(True))
+        super(NaiveTrainer, self).__init__(get_naive_config(True))
 
     @classmethod
     def build_train_loader(cls, cfg):
-        def custom_mapper(dataset_dict: typing.Dict[str, typing.Any]):
+        def naive_mapper(dataset_dict: typing.Dict[str, typing.Any]):
             """
             Naively calls the default mapper.
 
@@ -151,21 +146,21 @@ class CustomTrainer (DefaultTrainer):
             """
             image_array: np.ndarray = detection_utils.read_image(dataset_dict["file_name"], format="BGR")    # HWC image
 
-            max_y0 = image_array.shape[0] - CUSTOM_CONFIG_CROP_PATCH_HEIGHT
+            max_y0 = image_array.shape[0] - NAIVE_CROP_PATCH_HEIGHT
             if (max_y0 < 0):
                 y0 = 0
                 height = image_array.shape[0]
             else:
                 y0 = random.randint(0, max_y0)
-                height = CUSTOM_CONFIG_CROP_PATCH_HEIGHT
+                height = NAIVE_CROP_PATCH_HEIGHT
 
-            max_x0 = image_array.shape[1] - CUSTOM_CONFIG_CROP_PATCH_WIDTH
+            max_x0 = image_array.shape[1] - NAIVE_CROP_PATCH_WIDTH
             if (max_x0 < 0):
                 x0 = 0
                 width = image_array.shape[1]
             else:
                 x0 = random.randint(0, max_x0)
-                width = CUSTOM_CONFIG_CROP_PATCH_WIDTH
+                width = NAIVE_CROP_PATCH_WIDTH
 
             # Just call the default mapper.
             mapper = DatasetMapper(cfg, is_train=True, augmentations=[
@@ -193,7 +188,7 @@ class CustomTrainer (DefaultTrainer):
             #     "instances": annotation_instances,
             # }
 
-        data_loader = build_detection_train_loader(cfg, mapper=custom_mapper)
+        data_loader = build_detection_train_loader(cfg, mapper=naive_mapper)
         return data_loader
 
     @classmethod
@@ -212,19 +207,19 @@ class CustomTrainer (DefaultTrainer):
             # print(width, height, dataset_dict["width"], dataset_dict["height"])
 
             # Crop image.
-            max_x0 = width - CUSTOM_CONFIG_CROP_PATCH_WIDTH
-            max_y0 = height - CUSTOM_CONFIG_CROP_PATCH_HEIGHT
+            max_x0 = width - NAIVE_CROP_PATCH_WIDTH
+            max_y0 = height - NAIVE_CROP_PATCH_HEIGHT
 
             if (max_x0 >= 0):
                 x0 = random.randint(0, max_x0)
-                x1 = x0 + CUSTOM_CONFIG_CROP_PATCH_WIDTH
+                x1 = x0 + NAIVE_CROP_PATCH_WIDTH
             else:
                 x0 = 0
                 x1 = width - 1
 
             if (max_y0 >= 0):
                 y0 = random.randint(0, max_y0)
-                y1 = y0 + CUSTOM_CONFIG_CROP_PATCH_HEIGHT
+                y1 = y0 + NAIVE_CROP_PATCH_HEIGHT
             else:
                 y0 = 0
                 y1 = height - 1
@@ -235,7 +230,7 @@ class CustomTrainer (DefaultTrainer):
             cropped_annotations = []
             for annotation in dataset_dict[constant.detectron.ANNOTATIONS_KEY]:
                 b_box = annotation[constant.detectron.B_BOX_KEY]
-                cropped_b_box = helper.bounding_box.crop_bounding_box_xywh(b_box[0], b_box[1], b_box[2], b_box[3], x0, y0, x1 - x0, y1 - y0, CUSTOM_CROP_B_BOX_IOU_THRESHOLD)
+                cropped_b_box = helper.bounding_box.crop_bounding_box_xywh(b_box[0], b_box[1], b_box[2], b_box[3], x0, y0, x1 - x0, y1 - y0, NAIVE_CROP_B_BOX_IOU_THRESHOLD)
                 if not cropped_b_box:
                     continue
 

@@ -3,7 +3,7 @@ import unittest
 
 import dataset
 from detectron2.engine import DefaultTrainer
-from object_detection_config import get_baseline_config, get_custom_config, CustomTrainer
+from object_detection_config import get_baseline_config, get_naive_config, NaiveTrainer
 
 import constant.detectron
 
@@ -36,15 +36,15 @@ class DefaultTrainerTestCase (unittest.TestCase):
                     self.assertIsInstance(info_dict, dict)
 
 
-class CustomTrainerTestCase (unittest.TestCase):
+class NaiveTrainerTestCase (unittest.TestCase):
     def setUp(self) -> None:
-        super(CustomTrainerTestCase, self).setUp()
+        super(NaiveTrainerTestCase, self).setUp()
 
         dataset.register_datasets()
 
     def test_data_loader(self):
-        cfg = get_custom_config()
-        data_loader = CustomTrainer.build_train_loader(cfg)
+        cfg = get_naive_config()
+        data_loader = NaiveTrainer.build_train_loader(cfg)
 
         iteration_limit = 10
         for i, batch in enumerate(data_loader):
