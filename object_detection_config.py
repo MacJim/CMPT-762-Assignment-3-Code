@@ -64,7 +64,7 @@ def get_baseline_config(train=True) -> detectron2.config.config.CfgNode:
     """
     Get the baseline config in our project handout.
 
-    Source: https://detectron2.readthedocs.io/en/latest/modules/config.htmlx
+    Source: https://detectron2.readthedocs.io/en/latest/modules/config.html
     """
     if (train):
         # Train: create the output dir.
@@ -84,7 +84,7 @@ def get_baseline_config(train=True) -> detectron2.config.config.CfgNode:
     cfg.DATASETS.TEST = (constant.detectron.TEST_DATASET_NAME,)
     cfg.DATALOADER.NUM_WORKERS = 4
 
-    cfg.SOLVER.IMS_PER_BATCH = 3    # Batch size: images per batch
+    cfg.SOLVER.IMS_PER_BATCH = 2    # Batch size: images per batch
     cfg.SOLVER.BASE_LR = 0.00025
     cfg.SOLVER.MAX_ITER = 500
     # cfg.SOLVER.STEPS = []    # Learning rate scheduling: none in the baseline
@@ -100,7 +100,7 @@ def get_baseline_config(train=True) -> detectron2.config.config.CfgNode:
 
 
 # MARK: - Naive config and dataloader
-NAIVE_MODEL_YML: typing.Final = "COCO-Detection/faster_rcnn_X_101_FPN_3x.yaml"    # Not sure if I should use 152 layers.
+NAIVE_MODEL_YML: typing.Final = "COCO-Detection/faster_rcnn_X_101_32x8d_FPN_3x.yaml"    # Not sure if I should use 152 layers.
 
 NAIVE_OUTPUT_DIR: typing.Final = "output"    # Really don't want to change the default output dir.
 
@@ -110,14 +110,39 @@ NAIVE_CROP_B_BOX_IOU_THRESHOLD: typing.Final = 0.5;    """Bounding boxes in crop
 
 
 def get_naive_config(train=True) -> detectron2.config.config.CfgNode:
-    return get_baseline_config()    # TODO: Remove
-
     if (train):
         _create_output_dir(NAIVE_OUTPUT_DIR)
     else:
         final_checkpoint_filename = _get_final_checkpoint_filename(NAIVE_OUTPUT_DIR)
 
-    cfg = detectron2.config.get_cfg()  # This is just a copy of the default config.
+    # Create configuration.
+    cfg = detectron2.config.get_cfg()    # This is just a copy of the default config.
+
+    cfg.merge_from_file(model_zoo.get_config_file(NAIVE_MODEL_YML))
+
+    cfg.OUTPUT_DIR = NAIVE_OUTPUT_DIR
+
+    cfg.DATASETS.TRAIN = (constant.detectron.TRAIN_DATASET_NAME,)
+    cfg.DATASETS.TEST = (constant.detectron.TEST_DATASET_NAME,)
+    cfg.DATALOADER.NUM_WORKERS = 4
+
+    cfg.MODEL.BACKBONE.FREEZE_AT = 2    # TODO: Do I freeze the first few stages?
+    cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512    # Number of regions per image used to train RPN (Region Proposal Network)
+    cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1    # We only have a single plane class
+    cfg.MODEL.PIXEL_STD = [57.375, 57.120, 58.395]    # ImageNet std
+    if train:
+        cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(NAIVE_MODEL_YML)    # I don't know. Maybe loading a pre-trained model helps.
+    else:
+        cfg.MODEL.WEIGHTS = final_checkpoint_filename
+        cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
+
+    cfg.SOLVER.LR_SCHEDULER_NAME = "CosineAnnealingLR"
+    cfg.SOLVER.BASE_LR = 0.00025
+    cfg.SOLVER.MOMENTUM = 0.9
+    cfg.SOLVER.MAX_ITER = 5000
+    # cfg.SOLVER.STEPS = []    # Learning rate scheduling
+    cfg.SOLVER.CHECKPOINT_PERIOD = 100    # Save a checkpoint after every this number of iterations.
+    cfg.SOLVER.IMS_PER_BATCH = 2    # Batch size: images per batch
 
     return cfg
 
