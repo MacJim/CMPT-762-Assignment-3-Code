@@ -2,9 +2,11 @@
 Bounding box helpers.
 """
 
+import typing
+
 
 # MARK: - IoU
-def get_iou(x01, y01, w1, h1, x02, y02, w2, h2):
+def get_iou_xywh(x01, y01, w1, h1, x02, y02, w2, h2):
     x11 = x01 + w1
     y11 = y01 + h1
     x12 = x02 + w2
@@ -25,5 +27,24 @@ def get_iou(x01, y01, w1, h1, x02, y02, w2, h2):
     return (intersection / union)
 
 
-def crop_bounding_boxes():
-    pass
+def crop_bounding_box_xywh(bounding_box_x0, bounding_box_y0, bounding_box_w, bounding_box_h, crop_box_x0, crop_box_y0, crop_box_w, crop_box_h, threshold: float) -> typing.Optional[typing.Tuple[int, int, int, int]]:
+    if (get_iou_xywh(bounding_box_x0, bounding_box_y0, bounding_box_w, bounding_box_h, crop_box_x0, crop_box_y0, crop_box_w, crop_box_h) == 0.0):
+        return None
+
+    bounding_box_x1 = bounding_box_x0 + bounding_box_w
+    bounding_box_y1 = bounding_box_y0 + bounding_box_h
+    crop_box_x1 = crop_box_x0 + crop_box_w
+    crop_box_y1 = crop_box_y0 + crop_box_h
+
+    new_x0 = max(bounding_box_x0, crop_box_x0)
+    new_x1 = min(bounding_box_x1, crop_box_x1)
+    new_y0 = max(bounding_box_y0, crop_box_y0)
+    new_y1 = min(bounding_box_y1, crop_box_y1)
+    new_w = new_x1 - new_x0
+    new_h = new_y1 - new_y0
+
+    if (get_iou_xywh(new_x0, new_y0, new_w, new_h, bounding_box_x0, bounding_box_y0, bounding_box_w, bounding_box_h) < threshold):
+        # The bounding box was cropped too much.
+        return None
+
+    return (new_x0, new_y0, new_w, new_h)
