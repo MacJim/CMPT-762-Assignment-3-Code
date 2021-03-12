@@ -5,6 +5,7 @@ Get Detectron configuration (`detectron2.config.config.CfgNode`).
 import os
 import typing
 import copy
+import random
 
 import detectron2.config
 from detectron2 import model_zoo
@@ -147,7 +148,17 @@ class CustomTrainer (DefaultTrainer):
             width, height = image.size    # At this time, `width` equals `dataset_dict["width"]`, `height` equals `dataset_dict["height"]`
             # print(width, height, dataset_dict["width"], dataset_dict["height"])
 
-            # TODO: Crop image
+            # Crop annotations and images
+            max_x0 = width - CUSTOM_CONFIG_CROP_PATCH_WIDTH
+            max_y0 = height - CUSTOM_CONFIG_CROP_PATCH_HEIGHT
+
+            x0 = random.randint(0, max_x0)
+            y0 = random.randint(0, max_y0)
+            x1 = x0 + CUSTOM_CONFIG_CROP_PATCH_WIDTH
+            y1 = y0 + CUSTOM_CONFIG_CROP_PATCH_HEIGHT
+
+            image: Image.Image = image.crop((x0, y0, x1, y1))
+            # TODO: Crop annotations.
 
         data_loader = build_detection_train_loader(cfg, mapper=custom_mapper)
         return data_loader
