@@ -21,7 +21,7 @@ class DefaultTrainerTestCase (unittest.TestCase):
         data_loader = DefaultTrainer.build_train_loader(cfg)
 
         # Iteration count seem limitless.
-        iteration_limit = 100000000
+        iteration_limit = 100
         for i, batch in enumerate(data_loader):
             if (i >= iteration_limit):
                 break
@@ -30,6 +30,28 @@ class DefaultTrainerTestCase (unittest.TestCase):
                 print(f"{i}. Type: {type(batch)}, len: {len(batch)}")
                 self.assertIsInstance(batch, list)
                 self.assertEqual(len(batch), cfg.SOLVER.IMS_PER_BATCH)    # Batch size
+                for info_dict in batch:
+                    self.assertIsInstance(info_dict, dict)
+
+
+class CustomTrainerTestCase (unittest.TestCase):
+    def setUp(self) -> None:
+        super(CustomTrainerTestCase, self).setUp()
+
+        dataset.register_datasets()
+
+    def test_data_loader(self):
+        cfg = get_custom_config()
+        data_loader = CustomTrainer.build_train_loader(cfg)
+
+        iteration_limit = 100
+        for i, batch in enumerate(data_loader):
+            if (i >= iteration_limit):
+                break
+
+            with self.subTest():
+                self.assertIsInstance(batch, list)
+                self.assertEqual(len(batch), cfg.SOLVER.IMS_PER_BATCH)  # Batch size
                 for info_dict in batch:
                     self.assertIsInstance(info_dict, dict)
 
