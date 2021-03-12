@@ -7,15 +7,18 @@ import typing
 import copy
 import random
 
+import torch
+import torchvision.transforms.functional as TF
 import detectron2.config
 from detectron2 import model_zoo
 from detectron2.engine import DefaultTrainer
-from detectron2.data import DatasetMapper, build_detection_train_loader
+from detectron2.data import DatasetMapper, build_detection_train_loader, detection_utils
 import detectron2.data.transforms as T
-
 from PIL import Image
 
 import constant.detectron
+import helper.bounding_box
+import helper.segmentation_path
 
 
 # MARK: - Output dir manipulation
@@ -102,6 +105,7 @@ CUSTOM_CONFIG_OUTPUT_DIR: typing.Final = "output"    # Really don't want to chan
 
 CUSTOM_CONFIG_CROP_PATCH_WIDTH: typing.Final = 800
 CUSTOM_CONFIG_CROP_PATCH_HEIGHT: typing.Final = 800
+CUSTOM_CROP_B_BOX_IOU_THRESHOLD: typing.Final = 0.5;    """Bounding boxes in cropped patch must have this much IoU with the original box."""
 
 CUSTOM_CONFIG_AUGMENTATIONS: typing.Final = []
 """
@@ -148,17 +152,54 @@ class CustomTrainer (DefaultTrainer):
             width, height = image.size    # At this time, `width` equals `dataset_dict["width"]`, `height` equals `dataset_dict["height"]`
             # print(width, height, dataset_dict["width"], dataset_dict["height"])
 
-            # Crop annotations and images
+            # Crop image.
             max_x0 = width - CUSTOM_CONFIG_CROP_PATCH_WIDTH
             max_y0 = height - CUSTOM_CONFIG_CROP_PATCH_HEIGHT
 
-            x0 = random.randint(0, max_x0)
-            y0 = random.randint(0, max_y0)
-            x1 = x0 + CUSTOM_CONFIG_CROP_PATCH_WIDTH
-            y1 = y0 + CUSTOM_CONFIG_CROP_PATCH_HEIGHT
+            if (max_x0 > 0):
+                x0 = random.randint(0, max_x0)
+                x1 = x0 + CUSTOM_CONFIG_CROP_PATCH_WIDTH
+            else:
+                x0 = 0
+                x1 = width - 1
+
+            if (max_y0 > 0):
+                y0 = random.randint(0, max_y0)
+                y1 = y0 + CUSTOM_CONFIG_CROP_PATCH_HEIGHT
+            else:
+                y0 = 0
+                y1 = height - 1
 
             image: Image.Image = image.crop((x0, y0, x1, y1))
-            # TODO: Crop annotations.
+
+            # Crop bounding boxes and segmentations.
+            cropped_annotations = []
+            for annotation in dataset_dict[constant.detectron.ANNOTATIONS_KEY]:
+                b_box = annotation[constant.detectron.B_BOX_KEY]
+                cropped_b_box = helper.bounding_box.crop_bounding_box_xywh(b_box[0], b_box[1], b_box[2], b_box[3], x0, y0, x1 - x0, y1 - y0, CUSTOM_CROP_B_BOX_IOU_THRESHOLD)
+                if not cropped_b_box:
+                    continue
+
+                segmentations = annotation[constant.detectron.SEGMENTATION_PATH_KEY]
+                cropped_segmentations = [helper.segmentation_path.fit_segmentation_path_in_crop_box(s, x0, y0, x1 - x0, y1 - y0) for s in segmentations]
+
+                cropped_annotation = copy.deepcopy(annotation)
+                cropped_annotation[constant.detectron.B_BOX_KEY] = list(cropped_b_box)    # By default, `cropped_b_box` is a tuple.
+                cropped_annotation[constant.detectron.SEGMENTATION_PATH_KEY] = cropped_segmentations
+                cropped_annotations.append(cropped_annotation)
+
+            # Convert to model input format.
+            image_tensor: torch.Tensor = TF.to_tensor(image)
+            annotation_instances = detection_utils.annotations_to_instances(cropped_annotations, (y1 - y0, x1 - x0))
+
+            return {
+                "image": image_tensor,
+                "instances": annotation_instances,
+                constant.detectron.FILENAME_KEY: filename,
+                constant.detectron.WIDTH_KEY: (x1 - x0),
+                constant.detectron.HEIGHT_KEY: (y1 - y0),
+                constant.detectron.IMAGE_ID_KEY: dataset_dict[constant.detectron.IMAGE_ID_KEY],
+            }
 
         data_loader = build_detection_train_loader(cfg, mapper=custom_mapper)
         return data_loader
