@@ -64,12 +64,12 @@ class BoundingBoxCroppingTestCase (unittest.TestCase):
         threshold = 0.5
 
         self.assertIsNone(crop_bounding_box_xywh(0., 0., 2., 2., 1., 1., 3., 3., threshold))
-        self.assertEqual(crop_bounding_box_xywh(0., 1., 4., 3., 1., 1., 3., 3., threshold), (1., 1., 3., 3.))
+        self.assertEqual(crop_bounding_box_xywh(0., 1., 4., 3., 1., 1., 3., 3., threshold), (0., 0., 3., 3.))
 
         self.assertIsNone(crop_bounding_box_xywh(2., 2., 3., 3., 1., 1., 3., 3., threshold))
-        self.assertEqual(crop_bounding_box_xywh(2., 2., 2., 3., 1., 1., 3., 3., threshold), (2., 2., 2., 2.))
+        self.assertEqual(crop_bounding_box_xywh(2., 2., 2., 3., 1., 1., 3., 3., threshold), (1., 1., 2., 2.))
 
-        self.assertEqual(crop_bounding_box_xywh(2., 0., 2., 3., 1., 1., 3., 3., threshold), (2., 1., 2., 2.))
+        self.assertEqual(crop_bounding_box_xywh(2., 0., 2., 3., 1., 1., 3., 3., threshold), (1., 0., 2., 2.))
 
 
 if __name__ == '__main__':
