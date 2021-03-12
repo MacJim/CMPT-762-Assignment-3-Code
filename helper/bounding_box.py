@@ -28,6 +28,19 @@ def get_iou_xywh(x01, y01, w1, h1, x02, y02, w2, h2):
 
 
 def crop_bounding_box_xywh(bounding_box_x0, bounding_box_y0, bounding_box_w, bounding_box_h, crop_box_x0, crop_box_y0, crop_box_w, crop_box_h, threshold: float) -> typing.Optional[typing.Tuple[int, int, int, int]]:
+    """
+
+    :param bounding_box_x0:
+    :param bounding_box_y0:
+    :param bounding_box_w:
+    :param bounding_box_h:
+    :param crop_box_x0:
+    :param crop_box_y0:
+    :param crop_box_w:
+    :param crop_box_h:
+    :param threshold:
+    :return: (x0, y0, w, h) in the crop box's coordinate.
+    """
     if (get_iou_xywh(bounding_box_x0, bounding_box_y0, bounding_box_w, bounding_box_h, crop_box_x0, crop_box_y0, crop_box_w, crop_box_h) == 0.0):
         return None
 
@@ -46,5 +59,11 @@ def crop_bounding_box_xywh(bounding_box_x0, bounding_box_y0, bounding_box_w, bou
     if (get_iou_xywh(new_x0, new_y0, new_w, new_h, bounding_box_x0, bounding_box_y0, bounding_box_w, bounding_box_h) < threshold):
         # The bounding box was cropped too much.
         return None
+
+    # Convert to crop box's coordinate.
+    new_x0 -= crop_box_x0
+    new_y0 -= crop_box_y0
+    del new_x1
+    del new_y1
 
     return (new_x0, new_y0, new_w, new_h)
