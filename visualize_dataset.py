@@ -10,13 +10,16 @@ import random
 import cv2
 import detectron2.data
 from detectron2.utils.visualizer import Visualizer
+from detectron2.engine import DefaultTrainer
+import torch
 
 import dataset
 import constant.detectron
 from helper.visualization import save_visualization
+from object_detection_config import get_baseline_config, get_custom_config, CustomTrainer
 
 
-def main():
+def visualize_raw_dataset():
     dataset.register_datasets()
 
     train_dataset = detectron2.data.DatasetCatalog.get(constant.detectron.TRAIN_DATASET_NAME)
@@ -32,8 +35,40 @@ def main():
         save_visualization(out_filename, out_image)
 
 
+def visualize_data_loader():
+    dataset.register_datasets()
+
+    # cfg = get_baseline_config()
+    # train_dataloader = DefaultTrainer.build_train_loader(cfg)
+
+    cfg = get_custom_config()
+    train_dataloader = CustomTrainer.build_train_loader(cfg)
+
+    for i, batch in enumerate(train_dataloader):
+        if (i > 3):
+            break
+
+        for info_dict in batch:
+            image: torch.Tensor = info_dict["image"]
+            visualizer = Visualizer(image.numpy()[::-1, :, :].transpose(1, 2, 0), scale=0.5)
+            # out = visualizer.draw_dataset_dict(info_dict)
+            if ("instances" in info_dict):
+                for box in info_dict["instances"].get("gt_boxes"):
+                    # print(box)
+                    out = visualizer.draw_box(box)
+            else:
+                out = visualizer.draw_dataset_dict(info_dict)    # I think this is NOP because the info dictionary returned by the data loader is different from the ones returned by the dataset.
+
+            out_image = out.get_image()[:, :, ::-1]
+
+            base_filename = os.path.basename(info_dict[constant.detectron.FILENAME_KEY])
+            out_filename = os.path.join("/tmp/visualization", base_filename)
+            save_visualization(out_filename, out_image)
+
+
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     print(f"Working directory: {os.getcwd()}")
 
-    main()
+    # visualize_dataset()
+    visualize_data_loader()
