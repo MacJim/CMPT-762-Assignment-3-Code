@@ -136,13 +136,13 @@ def get_naive_config(train=True) -> detectron2.config.config.CfgNode:
         cfg.MODEL.WEIGHTS = final_checkpoint_filename
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
 
-    cfg.SOLVER.LR_SCHEDULER_NAME = "CosineAnnealingLR"
+    cfg.SOLVER.LR_SCHEDULER_NAME = "WarmupCosineLR"
+    cfg.SOLVER.STEPS = (500,)    # Learning rate scheduling
     cfg.SOLVER.BASE_LR = 0.00025
     cfg.SOLVER.MOMENTUM = 0.9
     cfg.SOLVER.MAX_ITER = 5000
-    # cfg.SOLVER.STEPS = []    # Learning rate scheduling
     cfg.SOLVER.CHECKPOINT_PERIOD = 100    # Save a checkpoint after every this number of iterations.
-    cfg.SOLVER.IMS_PER_BATCH = 2    # Batch size: images per batch
+    cfg.SOLVER.IMS_PER_BATCH = 3    # Batch size: images per batch
 
     return cfg
 

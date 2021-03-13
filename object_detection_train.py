@@ -3,11 +3,11 @@ import os
 from detectron2.engine import DefaultTrainer
 
 import dataset
-from object_detection_config import get_baseline_config
+from object_detection_config import get_baseline_config, NaiveTrainer
 
 
 # MARK: - Main
-def main():
+def main_baseline():
     # Register datasets.
     dataset.register_datasets()
 
@@ -18,6 +18,16 @@ def main():
     trainer = DefaultTrainer(cfg)
     trainer.resume_or_load(resume=False)    # Start from iteration 0.
     trainer.train()    # Run training.
+
+
+def main_naive():
+    # Register datasets.
+    dataset.register_datasets()
+
+    # Train.
+    trainer = NaiveTrainer()
+    trainer.resume_or_load(resume=False)  # Start from iteration 0.
+    trainer.train()  # Run training.
 
 
 if __name__ == '__main__':
@@ -35,4 +45,5 @@ if __name__ == '__main__':
     # parser.add_argument("--validation_log_filename", type=str, default="checkpoints/validation_log.csv")
     # args = parser.parse_args()
 
-    main()
+    # main_baseline()
+    main_naive()
