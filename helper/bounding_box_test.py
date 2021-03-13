@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from bounding_box import get_iou_xywh, crop_bounding_box_xywh
+from bounding_box import get_iou_xywh, crop_bounding_box_xywh, get_containing_bounding_box_xyxy, nms_xyxy
 
 
 class IoUTestCase (unittest.TestCase):
@@ -70,6 +70,55 @@ class BoundingBoxCroppingTestCase (unittest.TestCase):
         self.assertEqual(crop_bounding_box_xywh(2., 2., 2., 3., 1., 1., 3., 3., threshold), (1., 1., 2., 2.))
 
         self.assertEqual(crop_bounding_box_xywh(2., 0., 2., 3., 1., 1., 3., 3., threshold), (1., 0., 2., 2.))
+
+
+class ContainingBoxTestCase (unittest.TestCase):
+    def test_non_intersection(self):
+        self.assertEqual(get_containing_bounding_box_xyxy([[0, 0, 2, 2], [3, 3, 6, 6]]), [0, 0, 6, 6])
+        self.assertEqual(get_containing_bounding_box_xyxy([[3, 3, 6, 6], [0, 0, 2, 2]]), [0, 0, 6, 6])
+        self.assertEqual(get_containing_bounding_box_xyxy([[3, 3, 6, 6], [0, 0, 2, 2], [7, 7, 9, 9]]), [0, 0, 9, 9])
+
+    def test_intersection(self):
+        self.assertEqual(get_containing_bounding_box_xyxy([[0, 0, 2, 2], [1, 1, 3, 3]]), [0, 0, 3, 3])
+        self.assertEqual(get_containing_bounding_box_xyxy([[1, 1, 3, 3], [0, 0, 2, 2]]), [0, 0, 3, 3])
+
+        self.assertEqual(get_containing_bounding_box_xyxy([[0, 0, 2, 2], [1, 1, 3, 3], [0, 2, 2, 4]]), [0, 0, 3, 4])
+        self.assertEqual(get_containing_bounding_box_xyxy([[0, 0, 2, 2], [0, 2, 2, 4], [1, 1, 3, 3]]), [0, 0, 3, 4])
+
+    def test_include(self):
+        self.assertEqual(get_containing_bounding_box_xyxy([[0, 0, 4, 4], [1, 1, 2, 2], [2, 2, 4, 4]]), [0, 0, 4, 4])
+
+
+class NMSTestCase (unittest.TestCase):
+    def test_1(self):
+        boxes = [
+            [0, 0, 10, 10],
+            [1, 1, 10, 10],
+        ]
+        scores = [0.8, 0.9]
+        result = nms_xyxy(boxes, scores)
+        self.assertEqual(result, ([[1, 1, 10, 10]], [0.9]))
+
+    def test_2(self):
+        boxes = [
+            [0, 0, 10, 10],
+            [1, 1, 10, 10],
+            [0, 0, 9, 9],
+        ]
+        scores = [0.9, 0.8, 0.8]
+        result = nms_xyxy(boxes, scores)
+        self.assertEqual(result, ([[0, 0, 10, 10]], [0.9]))
+
+    def test_3(self):
+        boxes = [
+            [0, 0, 10, 10],
+            [12, 12, 14, 14],
+            [1, 1, 10, 10],
+            [0, 0, 9, 9],
+        ]
+        scores = [0.9, 0.7, 0.8, 0.8]
+        result = nms_xyxy(boxes, scores)
+        self.assertEqual(result, ([[0, 0, 10, 10], [12, 12, 14, 14]], [0.9, 0.7]))
 
 
 if __name__ == '__main__':

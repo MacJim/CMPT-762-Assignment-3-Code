@@ -45,14 +45,20 @@ def _get_final_checkpoint_filename(output_dir: str) -> str:
     elif (not os.path.isdir(output_dir)):
         raise ValueError(f"Output dir `{output_dir}` exists, but is not a directory.")
 
-    filename = os.path.join(output_dir, constant.detectron.FINAL_CHECKPOINT_FILENAME)
-    if (os.path.isfile(filename)):
-        print(f"Using checkpoint file `{filename}`")
-        return filename
-    elif (not os.path.exists(filename)):
-        raise FileNotFoundError(f"Checkpoint file `{filename}` does not exist!")
+    final_filename = os.path.join(output_dir, constant.detectron.FINAL_CHECKPOINT_FILENAME)
+    if (os.path.isfile(final_filename)):
+        print(f"Using final checkpoint file `{final_filename}`.")
+        return final_filename
     else:
-        raise ValueError(f"Checkpoint file `{filename}` exists, but is not a file.")
+        alternative_files = os.listdir(output_dir)
+        alternative_files = [f for f in alternative_files if f.endswith(".pth")]
+        if not alternative_files:
+            raise FileNotFoundError(f"No checkpoint file found in output dir `{output_dir}`!")
+
+        alternative_files.sort()
+        alternative_filename = os.path.join(output_dir, alternative_files[-1])
+        print(f"Using alternative checkpoint file `{alternative_filename}`.")
+        return alternative_filename
 
 
 # MARK: - Baseline config
