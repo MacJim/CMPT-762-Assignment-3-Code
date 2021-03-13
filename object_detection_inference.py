@@ -19,6 +19,7 @@ import dataset
 import constant.detectron
 from helper.visualization import save_visualization
 from helper.patch import get_crop_patch_axes
+from helper.bounding_box import nms_xyxy
 
 
 def main_baseline():
@@ -76,6 +77,9 @@ def main_naive():
                 pred_scores.append(patch_score)
 
         visualizer = Visualizer(im[:, :, ::-1], metadata=metadata_dict, scale=0.5, instance_mode=ColorMode.IMAGE_BW)
+
+        # Apply NMS.
+        pred_boxes, pred_scores = nms_xyxy(pred_boxes, pred_scores)
         for box in pred_boxes:
             out = visualizer.draw_box(box)
 
