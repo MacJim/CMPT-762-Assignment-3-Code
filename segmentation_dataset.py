@@ -11,6 +11,8 @@ import torch.utils.data as data
 from torchvision import transforms
 from PIL import Image
 
+import constant.detectron
+
 
 # MARK: - Helpers
 def get_crop_coordinates(crop_x0: int, crop_y0: int, crop_width: int, crop_height: int, padding_percentage=0.2) -> typing.Tuple[int, int, int, int]:
@@ -58,36 +60,35 @@ TRAIN_TRANSFORMS: typing.Final = transforms.Compose([
 
 # MARK: - Dataset
 class PlaneDataset(data.Dataset):
-    def __init__(self, set_name: typing.Literal["train", "val", "test"], data_list):
+    def __init__(self, set_name: typing.Literal["train", "val", "test"], data_dict_list: typing.List[typing.Dict]):
         self.set_name = set_name
-        self.data = data_list
-        self.instance_map = []
-        for i, d in enumerate(self.data):
-            for j in range(len(d['annotations'])):
-                self.instance_map.append([i, j])
+
+        self.images: typing.Dict[str, Image.Image] = {info_dict[constant.detectron.FILENAME_KEY]: Image.open(info_dict[constant.detectron.FILENAME_KEY]) for info_dict in data_dict_list}
+        """Cached PIL images."""
+
+        self.annotations: typing.List[typing.Tuple[str, typing.List[int], typing.List[typing.List[int]]]] = []
+        """(filename, bounding box, segmentation paths)"""
 
     # You can change the value of length to a small number like 10 for debugging of your training procedure and over-fitting make sure to use the correct length for the final training.
 
-    def __len__(self):
-        return len(self.instance_map)
+    def __len__(self) -> int:
+        return len(self.annotations)
 
-    def numpy_to_tensor(self, img, mask):
-        if self.transforms is not None:
-            img = self.transforms(img)
-        img = torch.tensor(img, dtype=torch.float)
-        mask = torch.tensor(mask, dtype=torch.float)
-        return img, mask
+    # def numpy_to_tensor(self, img, mask):
+    #     if self.transforms is not None:
+    #         img = self.transforms(img)
+    #     img = torch.tensor(img, dtype=torch.float)
+    #     mask = torch.tensor(mask, dtype=torch.float)
+    #     return img, mask
 
-    '''
     # Complete this part by using get_instance_sample function
     # make sure to resize the img and mask to a fixed size (for example 128*128)
     # you can use "interpolate" function of pytorch or "numpy.resize"
     # TODO: 5 lines
-    '''
 
-    def __getitem__(self, idx):
-        if torch.is_tensor(idx):
-            idx = idx.tolist()
+    def __getitem__(self, idx: int) -> typing.Tuple[torch.Tensor, torch.Tensor]:
+        # if torch.is_tensor(idx):
+        #     idx = idx.tolist()
         idx = self.instance_map[idx]
         data = self.data[idx[0]]
 
