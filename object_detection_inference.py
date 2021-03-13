@@ -1,5 +1,7 @@
 """
 Part 1 inference code.
+
+Detectron2 model input/output documentation: https://detectron2.readthedocs.io/en/latest/tutorials/models.html
 """
 
 import os

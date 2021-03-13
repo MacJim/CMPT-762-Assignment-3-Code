@@ -7,7 +7,17 @@ import warnings
 
 
 # MARK: - IoU
-def get_iou_xywh(x01, y01, w1, h1, x02, y02, w2, h2):
+def get_iou_xyxy(x01, y01, x11, y11, x02, y02, x12, y12) -> float:
+    w1 = x11 - x01
+    h1 = y11 - y01
+    w2 = x12 - x02
+    h2 = y12 - y02
+
+    return_value = get_iou_xywh(x01, y01, w1, h1, x02, y02, w2, h2)
+    return return_value
+
+
+def get_iou_xywh(x01, y01, w1, h1, x02, y02, w2, h2) -> float:
     x11 = x01 + w1
     y11 = y01 + h1
     x12 = x02 + w2
@@ -108,7 +118,32 @@ def get_containing_bounding_box_xyxy(sub_boxes: typing.List[typing.List[float]])
     return [x0, y0, x1, y1]
 
 
-# TODO: - NMS
+# MARK: - NMS
+def nms_xyxy(pred_boxes: typing.List[typing.List[float]], pred_scores: typing.List[float], nms_iou_threshold=0.5) -> typing.Tuple[typing.List[typing.List[float]], typing.List[float]]:
+    # Sort according to scores: largest score first, smallest score last.
+    pred_scores, pred_boxes = (list(t) for t in zip(*sorted(zip(pred_scores, pred_boxes), reverse=True)))
+
+    returned_scores = []
+    returned_boxes = []
+
+    for score, box in zip(pred_scores, pred_boxes):
+        if not returned_scores:
+            returned_scores.append(score)
+            returned_boxes.append(box)
+            continue
+
+        keep_current_box = True
+        for existing_box in returned_boxes:
+            iou = get_iou_xyxy(box[0], box[1], box[2], box[3], existing_box[0], existing_box[1], existing_box[2], existing_box[3])
+            if (iou > nms_iou_threshold):
+                keep_current_box = False
+                break
+
+        if keep_current_box:
+            returned_scores.append(score)
+            returned_boxes.append(box)
+
+    return (returned_boxes, returned_scores)
 
 
 # MARK: - Combine
@@ -123,10 +158,8 @@ def combine_bounding_boxes_naively_xyxy(pred_boxes: typing.List[typing.List[floa
     1. Find all boxes covered by other boxes, and remove them
     2. NMS among all the remaining boxes
     """
-    warnings.warn("Not implemented")
     # 1
     retained_boxes = []
     for box in pred_boxes:
         for existing_box in retained_boxes:
-            if (box):
-                pass
+            pass

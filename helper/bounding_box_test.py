@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from bounding_box import get_iou_xywh, crop_bounding_box_xywh, get_containing_bounding_box_xyxy
+from bounding_box import get_iou_xywh, crop_bounding_box_xywh, get_containing_bounding_box_xyxy, nms_xyxy
 
 
 class IoUTestCase (unittest.TestCase):
@@ -87,6 +87,38 @@ class ContainingBoxTestCase (unittest.TestCase):
 
     def test_include(self):
         self.assertEqual(get_containing_bounding_box_xyxy([[0, 0, 4, 4], [1, 1, 2, 2], [2, 2, 4, 4]]), [0, 0, 4, 4])
+
+
+class NMSTestCase (unittest.TestCase):
+    def test_1(self):
+        boxes = [
+            [0, 0, 10, 10],
+            [1, 1, 10, 10],
+        ]
+        scores = [0.8, 0.9]
+        result = nms_xyxy(boxes, scores)
+        self.assertEqual(result, ([[1, 1, 10, 10]], [0.9]))
+
+    def test_2(self):
+        boxes = [
+            [0, 0, 10, 10],
+            [1, 1, 10, 10],
+            [0, 0, 9, 9],
+        ]
+        scores = [0.9, 0.8, 0.8]
+        result = nms_xyxy(boxes, scores)
+        self.assertEqual(result, ([[0, 0, 10, 10]], [0.9]))
+
+    def test_3(self):
+        boxes = [
+            [0, 0, 10, 10],
+            [12, 12, 14, 14],
+            [1, 1, 10, 10],
+            [0, 0, 9, 9],
+        ]
+        scores = [0.9, 0.7, 0.8, 0.8]
+        result = nms_xyxy(boxes, scores)
+        self.assertEqual(result, ([[0, 0, 10, 10], [12, 12, 14, 14]], [0.9, 0.7]))
 
 
 if __name__ == '__main__':
