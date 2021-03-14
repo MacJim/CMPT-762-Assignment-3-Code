@@ -5,17 +5,19 @@
 """
 
 import typing
+import random
 
 import torch
 import torch.utils.data as data
-from torchvision import transforms
-from PIL import Image
+# from torchvision import transforms
+import torchvision.transforms.functional as TF
+from PIL import Image, ImageDraw
 
 import constant.detectron
 
 
 # MARK: - Helpers
-def get_crop_coordinates(crop_x0: int, crop_y0: int, crop_width: int, crop_height: int, padding_percentage=0.2) -> typing.Tuple[int, int, int, int]:
+def get_crop_coordinates(crop_x0: int, crop_y0: int, crop_width: int, crop_height: int, padding_percentage=0.1) -> typing.Tuple[int, int, int, int]:
     """
     Note that this function takes in xywh and returns xyxy.
 
@@ -23,7 +25,7 @@ def get_crop_coordinates(crop_x0: int, crop_y0: int, crop_width: int, crop_heigh
     :param crop_y0:
     :param crop_width:
     :param crop_height:
-    :param padding_percentage:
+    :param padding_percentage: Padding percentage on each side.
     :return: (crop_x0, crop_y0, crop_x1, crop_y1)
     """
     crop_x1 = crop_x0 + crop_width
@@ -51,11 +53,52 @@ def get_crop_coordinates(crop_x0: int, crop_y0: int, crop_width: int, crop_heigh
     return (crop_x0, crop_y0, crop_x1, crop_y1)
 
 
-# MARK: - Transforms
-TRAIN_TRANSFORMS: typing.Final = transforms.Compose([
-    transforms.RandomHorizontalFlip(),
-    transforms.RandomVerticalFlip(),
-])
+def get_segmentation_mask(size: typing.Tuple[int, int], segmentation_paths: typing.List[typing.List[int]]) -> Image.Image:
+    """
+    Get segmentation mask.
+
+    :param size: Size of the mask in PIL format: (width, height)
+    :param segmentation_paths: Segmentation paths: A list of [(x, y), (x, y), ...] or [x, y, x, y, ...]
+    :return: Segmentation mask: black background, white foreground.
+    """
+    mask: Image.Image = Image.new("L", size, 0)    # All black by default.
+    draw: ImageDraw.Draw = ImageDraw.Draw(mask)
+    for segmentation_path in segmentation_paths:
+        draw.polygon(segmentation_path, fill=255)
+
+    return mask
+
+
+# MARK: - Data augmentation/transform
+TRANSFORM_MEAN: typing.Final = [0.485, 0.456, 0.406]
+TRANSFORM_STD: typing.Final = [0.229, 0.224, 0.225]
+
+
+def augment_training_image_and_mask(image: Image.Image, mask: Image.Image) -> typing.Tuple[torch.Tensor, torch.Tensor]:
+    # To tensor.
+    image_tensor = TF.to_tensor(image)
+    mask_tensor = TF.to_tensor(mask)
+
+    # Horizontal flip.
+    if (random.uniform(0.0, 1.0) < 0.5):
+        image_tensor = TF.hflip(image_tensor)
+        mask_tensor = TF.hflip(mask_tensor)
+
+    # Vertical flip.
+    if (random.uniform(0.0, 1.0) < 0.5):
+        image_tensor = TF.vflip(image_tensor)
+        mask_tensor = TF.vflip(mask_tensor)
+
+    # Rotation.
+    rotation = random.choice([0, 90, 180, 270])
+    if (rotation != 0):
+        image_tensor = TF.rotate(image_tensor, rotation)
+        mask_tensor = TF.rotate(mask_tensor, rotation)
+
+    # Normalize image.
+    image_tensor = TF.normalize(image_tensor, TRANSFORM_MEAN, TRANSFORM_STD)
+
+    return (image_tensor, mask_tensor)
 
 
 # MARK: - Dataset
@@ -66,13 +109,21 @@ class PlaneDataset(data.Dataset):
         self.images: typing.Dict[str, Image.Image] = {info_dict[constant.detectron.FILENAME_KEY]: Image.open(info_dict[constant.detectron.FILENAME_KEY]) for info_dict in data_dict_list}
         """Cached PIL images."""
 
-        self.annotations: typing.List[typing.Tuple[str, typing.List[int], typing.List[typing.List[int]]]] = []
+        self.filenames_and_annotations: typing.List[typing.Tuple[str, typing.List[int], typing.List[typing.List[int]]]] = []
         """(filename, bounding box, segmentation paths)"""
+        for info_dict in data_dict_list:
+            filename = info_dict[constant.detectron.FILENAME_KEY]
+            annotations = info_dict[constant.detectron.ANNOTATIONS_KEY]
+            for annotation in annotations:
+                b_box = annotation[constant.detectron.B_BOX_KEY]
+                segmentation_paths = annotation[constant.detectron.SEGMENTATION_PATH_KEY]
+
+                self.filenames_and_annotations.append((filename, b_box, segmentation_paths))
 
     # You can change the value of length to a small number like 10 for debugging of your training procedure and over-fitting make sure to use the correct length for the final training.
 
     def __len__(self) -> int:
-        return len(self.annotations)
+        return len(self.filenames_and_annotations)
 
     # def numpy_to_tensor(self, img, mask):
     #     if self.transforms is not None:
@@ -87,12 +138,20 @@ class PlaneDataset(data.Dataset):
     # TODO: 5 lines
 
     def __getitem__(self, idx: int) -> typing.Tuple[torch.Tensor, torch.Tensor]:
-        # if torch.is_tensor(idx):
+        # if torch.is_tensor(idx):    # Don't know what this is for.
         #     idx = idx.tolist()
-        idx = self.instance_map[idx]
-        data = self.data[idx[0]]
 
-        return img, mask
+        filename, b_box, segmentation_path = self.filenames_and_annotations[idx]
+
+        full_image = self.images[filename]
+        full_segmentation_mask = get_segmentation_mask(full_image.size, segmentation_path)
+
+        crop_x0, crop_y0, crop_x1, crop_y1 = get_crop_coordinates(b_box[0], b_box[1], b_box[2], b_box[3])
+        image: Image.Image = full_image.crop((crop_x0, crop_y0, crop_x1, crop_y1))
+        mask: Image.Image = full_segmentation_mask.crop((crop_x0, crop_y0, crop_x1, crop_y1))
+
+        image_tensor, mask_tensor = augment_training_image_and_mask(image, mask)
+        return (image_tensor, mask_tensor)
 
 
 def get_plane_dataset(set_name='train', batch_size=2):
