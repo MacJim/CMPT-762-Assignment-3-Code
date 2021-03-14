@@ -45,7 +45,7 @@ def visualize_data_loader():
     train_dataloader = NaiveTrainer.build_train_loader(cfg)
 
     for i, batch in enumerate(train_dataloader):
-        if (i > 3):
+        if (i > 21):
             break
 
         for info_dict in batch:
@@ -53,9 +53,14 @@ def visualize_data_loader():
             visualizer = Visualizer(image.numpy()[::-1, :, :].transpose(1, 2, 0), scale=0.5)
             # out = visualizer.draw_dataset_dict(info_dict)
             if ("instances" in info_dict):
-                for box in info_dict["instances"].get("gt_boxes"):
+                boxes = info_dict["instances"].get("gt_boxes")
+                for box in boxes:
                     # print(box)
                     out = visualizer.draw_box(box)
+
+                if not boxes:
+                    out = visualizer.draw_dataset_dict(info_dict)    # I think this is NOP because the info dictionary returned by the data loader is different from the ones returned by the dataset.
+
             else:
                 out = visualizer.draw_dataset_dict(info_dict)    # I think this is NOP because the info dictionary returned by the data loader is different from the ones returned by the dataset.
 
@@ -70,5 +75,5 @@ if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     print(f"Working directory: {os.getcwd()}")
 
-    # visualize_dataset()
+    # visualize_raw_dataset()
     visualize_data_loader()

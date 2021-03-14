@@ -13,13 +13,16 @@ import detectron2.config
 from detectron2 import model_zoo
 from detectron2.engine import DefaultTrainer
 from detectron2.data import DatasetMapper, build_detection_train_loader, detection_utils
+from detectron2.data.transforms.augmentation import Augmentation
 import detectron2.data.transforms as T
+import  detectron2.structures
 from PIL import Image
 import numpy as np
 
 import constant.detectron
 import helper.bounding_box
 import helper.segmentation_path
+from helper.bounding_box import get_iou_xyxy, crop_bounding_box_xywh
 
 
 # MARK: - Output dir manipulation
@@ -112,7 +115,7 @@ NAIVE_OUTPUT_DIR: typing.Final = "output"    # Really don't want to change the d
 
 NAIVE_CROP_PATCH_WIDTH: typing.Final = 800
 NAIVE_CROP_PATCH_HEIGHT: typing.Final = 800
-NAIVE_CROP_B_BOX_IOU_THRESHOLD: typing.Final = 0.5;    """Bounding boxes in cropped patch must have this much IoU with the original box."""
+NAIVE_CROP_B_BOX_IOU_THRESHOLD: typing.Final = 0.6;    """Bounding boxes in cropped patch must have this much IoU with the original box."""
 
 
 def get_naive_config(train=True) -> detectron2.config.config.CfgNode:
@@ -175,49 +178,100 @@ class NaiveTrainer (DefaultTrainer):
             :param dataset_dict:
             :return:
             """
-            image_array: np.ndarray = detection_utils.read_image(dataset_dict["file_name"], format="BGR")    # HWC image
+            dataset_dict = copy.deepcopy(dataset_dict)    # We need to get rid of out of boundary bounding boxes, so we need copy here.
 
-            max_y0 = image_array.shape[0] - NAIVE_CROP_PATCH_HEIGHT
-            if (max_y0 < 0):
-                y0 = 0
-                height = image_array.shape[0]
-            else:
-                y0 = random.randint(0, max_y0)
-                height = NAIVE_CROP_PATCH_HEIGHT
+            # Get custom crop coordinates.
+            class CustomCrop (Augmentation):
+                """
+                Refer to the implementation of `RandomCrop`: https://detectron2.readthedocs.io/en/latest/_modules/detectron2/data/transforms/augmentation_impl.html#RandomCrop
+                """
+                def __init__(self, x0: int, y0: int, crop_width: int, crop_height: int):
+                    super(CustomCrop, self).__init__()
+                    self._init(locals())
 
-            max_x0 = image_array.shape[1] - NAIVE_CROP_PATCH_WIDTH
+                def get_transform(self, image):
+                    return T.CropTransform(self.x0, self.y0, self.crop_width, self.crop_height)
+
+            # image_array: np.ndarray = detection_utils.read_image(dataset_dict["file_name"], format="BGR")    # HWC image
+            image: Image.Image = Image.open(dataset_dict["file_name"])
+            image_width, image_height = image.size
+            del image
+
+            max_x0 = image_width - NAIVE_CROP_PATCH_WIDTH
             if (max_x0 < 0):
-                x0 = 0
-                width = image_array.shape[1]
+                crop_x0 = 0
+                crop_width = image_width
             else:
-                x0 = random.randint(0, max_x0)
-                width = NAIVE_CROP_PATCH_WIDTH
+                crop_x0 = random.randint(0, max_x0)
+                crop_width = NAIVE_CROP_PATCH_WIDTH
 
-            # Just call the default mapper.
+            max_y0 = image_height - NAIVE_CROP_PATCH_HEIGHT
+            if (max_y0 < 0):
+                crop_y0 = 0
+                crop_height = image_height
+            else:
+                crop_y0 = random.randint(0, max_y0)
+                crop_height = NAIVE_CROP_PATCH_HEIGHT
+
+            # Get rid of bounding boxes that are out of boundary or cropped too much.
+            annotations = dataset_dict[constant.detectron.ANNOTATIONS_KEY]
+            retained_annotations = []
+            for annotation in annotations:
+                b_box = annotation[constant.detectron.B_BOX_KEY]    # xywh
+                cropped_b_box = crop_bounding_box_xywh(b_box[0], b_box[1], b_box[2], b_box[3], crop_x0, crop_y0, crop_width, crop_height, NAIVE_CROP_B_BOX_IOU_THRESHOLD)
+                if (cropped_b_box):
+                    retained_annotations.append(annotation)
+
+            dataset_dict[constant.detectron.ANNOTATIONS_KEY] = retained_annotations
+
+            # Call the default mapper to crop both the image and the bounding boxes.
             mapper = DatasetMapper(cfg, is_train=True, augmentations=[
+                # T.RandomCrop("absolute", (crop_height, crop_width)),
+                CustomCrop(crop_x0, crop_y0, crop_width, crop_height),
                 T.RandomBrightness(0.9, 1.1),
-                T.RandomCrop("absolute", (height, width)),
+                T.RandomFlip(horizontal=True, vertical=False),
+                T.RandomFlip(horizontal=False, vertical=True),    # Must do horizontal and vertical flips separately.
             ])
             return_value = mapper(dataset_dict)
+
             return return_value
 
-            # augs = T.AugmentationList([
-            #     T.RandomBrightness(0.9, 1.1),
-            #     T.RandomCrop("absolute", (height, width)),
-            # ])
-
-            # aug_input = T.AugInput(image_array)
-            # transform = augs(aug_input)
+            # # Identify bounding boxes that are cropped too much.
+            # instances = return_value["instances"]    # Instances(num_instances=2, image_height=800, image_width=800, fields=[gt_boxes: Boxes(tensor([[  0.,  33., 236., 241.], [  0., 722., 242., 800.]])), gt_classes: tensor([0, 0])])
+            # patch_boxes: torch.Tensor = instances.get("gt_boxes").tensor
             #
-            # image_tensor: torch.Tensor = torch.from_numpy(aug_input.image.transpose(2, 0, 1))
+            # new_patch_boxes_list = []
+            # for i in range(patch_boxes.shape[0]):
+            #     patch_box = patch_boxes[i].tolist()    # Format: x0, y0, x1, y1
+            #     restored_patch_box = [patch_box[0] + crop_x0, patch_box[1] + crop_y0, patch_box[2] + crop_x0, patch_box[3] + crop_y0]    # Format: x0, y0, x1, y1
+            #     max_iou = 0.0
+            #     for annotation in dataset_dict[constant.detectron.ANNOTATIONS_KEY]:
+            #         if constant.detectron.B_BOX_KEY not in annotation:
+            #             continue
             #
-            # annotations = [detection_utils.transform_instance_annotations(annotation, [transform], image_tensor.shape[1:]) for annotation in dataset_dict[constant.detectron.ANNOTATIONS_KEY]]
-            # annotation_instances = detection_utils.annotations_to_instances(annotations, image_tensor.shape[1:])
+            #         original_b_box = annotation[constant.detectron.B_BOX_KEY]    # Format: x0, y0, w, h
+            #         iou = get_iou_xyxy(restored_patch_box[0], restored_patch_box[1], restored_patch_box[2], restored_patch_box[3], original_b_box[0], original_b_box[1], original_b_box[0] + original_b_box[2], original_b_box[1] + original_b_box[3])
+            #         max_iou = max(iou, max_iou)
             #
-            # return {
-            #     "image": image_tensor,
-            #     "instances": annotation_instances,
-            # }
+            #     if (max_iou >= NAIVE_CROP_B_BOX_IOU_THRESHOLD):
+            #         new_patch_boxes_list.append(patch_box)
+            #
+            # if new_patch_boxes_list:
+            #     new_patch_boxes = torch.tensor(new_patch_boxes_list)
+            #     new_gt_classes = torch.zeros((len(new_patch_boxes_list)))    # We only have one class, thus we directly use 0 here.
+            # else:
+            #     # We still need the secondary shape.
+            #     new_patch_boxes = torch.zeros((0, 4))
+            #     new_gt_classes = torch.zeros((0,))
+            #
+            # # Create a new `Instances` object based on the retained bounding boxes.
+            # new_instances = detectron2.structures.Instances((crop_height, crop_width))
+            # new_instances.set("gt_boxes", detectron2.structures.Boxes(new_patch_boxes))
+            # new_instances.set("gt_classes", new_gt_classes)
+            #
+            # return_value["instances"] = new_instances
+            #
+            # return return_value
 
         data_loader = build_detection_train_loader(cfg, mapper=naive_mapper)
         return data_loader
