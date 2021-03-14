@@ -116,18 +116,26 @@ def augment_training_image_and_mask(image: Image.Image, mask: Image.Image, size:
 
 # MARK: - Dataset
 class PlaneDataset(data.Dataset):
-    def __init__(self, set_name: typing.Literal["train", "val", "test"], data_dict_list: typing.List[typing.Dict], patch_width: int, patch_height: int):
+    def __init__(self, set_name: typing.Literal["train", "test"], data_dict_list: typing.List[typing.Dict], patch_width: int, patch_height: int):
         self.set_name = set_name
 
         self.images: typing.Dict[str, Image.Image] = {info_dict[constant.detectron.FILENAME_KEY]: Image.open(info_dict[constant.detectron.FILENAME_KEY]) for info_dict in data_dict_list}    # `open` doesn't load the images into memory.
-        """Cached PIL images."""
+        """
+        Cached PIL images.
+        
+        Although this dict is ordered, it acts as an unordered map.
+        """
         # Load all images into memory to prevent data loader worker contention of automatically loading images.
         # Requires ~9GB of memory.
-        for image in tqdm.tqdm(self.images.values(), desc="Loaded training images", unit="images"):
+        for image in tqdm.tqdm(self.images.values(), desc="Loaded train/validation images", unit="images"):
             image.load()
 
         self.filenames_and_annotations: typing.List[typing.Tuple[str, typing.List[int], typing.List[typing.List[int]]]] = []
-        """(filename, bounding box, segmentation paths)"""
+        """
+        (filename, bounding box, segmentation paths)
+        
+        This list is in the same order as `data_dict_list`.
+        """
         for info_dict in data_dict_list:
             filename = info_dict[constant.detectron.FILENAME_KEY]
             annotations = info_dict[constant.detectron.ANNOTATIONS_KEY]
@@ -137,8 +145,16 @@ class PlaneDataset(data.Dataset):
 
                 self.filenames_and_annotations.append((filename, b_box, segmentation_paths))
 
+        # Do not shuffle here. Use `data.random_split` to shuffle and split train/validation.
+        # random.shuffle(self.filenames_and_annotations)    # Shuffles in place.
+
         self.patch_width = patch_width
         self.patch_height = patch_height
+
+        # total_len = len(self.filenames_and_annotations)
+        # self.validation_set_len = int(total_len * validation_percentage)
+        # self.training_set_len = total_len - self.validation_set_len
+        # print(f"Training patches: total: {total_len}, train: {self.training_set_len}, val: {self.validation_set_len}")
 
     def __del__(self):
         for _, image in self.images.items():
@@ -147,7 +163,10 @@ class PlaneDataset(data.Dataset):
     # You can change the value of length to a small number like 10 for debugging of your training procedure and over-fitting make sure to use the correct length for the final training.
 
     def __len__(self) -> int:
-        return len(self.filenames_and_annotations)
+        if (self.set_name == "train"):
+            return len(self.filenames_and_annotations)
+        else:
+            raise NotImplementedError(f"Set `{self.set_name}` is not implemented.")
 
     # def numpy_to_tensor(self, img, mask):
     #     if self.transforms is not None:
@@ -164,6 +183,8 @@ class PlaneDataset(data.Dataset):
     def __getitem__(self, idx: int) -> typing.Tuple[torch.Tensor, torch.Tensor]:
         # if torch.is_tensor(idx):    # Don't know what this is for.
         #     idx = idx.tolist()
+        if (self.set_name != "train"):
+            raise NotImplementedError(f"Set `{self.set_name}` is not implemented.")
 
         filename, b_box, segmentation_path = self.filenames_and_annotations[idx]
 
