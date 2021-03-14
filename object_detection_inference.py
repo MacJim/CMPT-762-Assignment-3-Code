@@ -52,8 +52,8 @@ def main_naive():
     dataset_dicts = DatasetCatalog.get(constant.detectron.TEST_DATASET_NAME)
     metadata_dict = MetadataCatalog.get(constant.detectron.TEST_DATASET_NAME)
 
-    # for i, d in enumerate(random.sample(dataset_dicts, 1)):
-    for i, d in enumerate(dataset_dicts):
+    # for _, d in enumerate(random.sample(dataset_dicts, 1)):
+    for d in dataset_dicts:
         im: np.ndarray = cv2.imread(d[constant.detectron.FILENAME_KEY])
 
         pred_boxes = []
