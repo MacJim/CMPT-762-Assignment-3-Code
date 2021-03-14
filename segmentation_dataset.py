@@ -12,6 +12,7 @@ import torch.utils.data as data
 # from torchvision import transforms
 import torchvision.transforms.functional as TF
 from PIL import Image, ImageDraw
+import tqdm
 
 import constant.detectron
 
@@ -61,10 +62,10 @@ def get_segmentation_mask(size: typing.Tuple[int, int], segmentation_paths: typi
     :param segmentation_paths: Segmentation paths: A list of [(x, y), (x, y), ...] or [x, y, x, y, ...]
     :return: Segmentation mask: black background, white foreground.
     """
-    mask: Image.Image = Image.new("L", size, 0)    # All black by default.
+    mask: Image.Image = Image.new("1", size, 0)    # All black by default.
     draw: ImageDraw.Draw = ImageDraw.Draw(mask)
     for segmentation_path in segmentation_paths:
-        draw.polygon(segmentation_path, fill=255)
+        draw.polygon(segmentation_path, fill=1)
 
     return mask
 
@@ -74,7 +75,16 @@ TRANSFORM_MEAN: typing.Final = [0.485, 0.456, 0.406]
 TRANSFORM_STD: typing.Final = [0.229, 0.224, 0.225]
 
 
-def augment_training_image_and_mask(image: Image.Image, mask: Image.Image) -> typing.Tuple[torch.Tensor, torch.Tensor]:
+def augment_training_image_and_mask(image: Image.Image, mask: Image.Image, size: typing.Tuple[int, int]) -> typing.Tuple[torch.Tensor, torch.Tensor]:
+    # Sometimes `image` is grayscale (mode "L").
+    # We'll need to convert it to RGB.
+    if (image.mode != "RGB"):
+        image = image.convert("RGB")
+
+    # Reshape.
+    image = image.resize(size)    # Default is `Image.BICUBIC`
+    mask = mask.resize(size, resample=Image.NEAREST)    # Mask: nearest
+
     # To tensor.
     image_tensor = TF.to_tensor(image)
     mask_tensor = TF.to_tensor(mask)
@@ -98,16 +108,23 @@ def augment_training_image_and_mask(image: Image.Image, mask: Image.Image) -> ty
     # Normalize image.
     image_tensor = TF.normalize(image_tensor, TRANSFORM_MEAN, TRANSFORM_STD)
 
+    # Remove the channel dimension of the mask.
+    mask_tensor = torch.squeeze(mask_tensor, 0)
+
     return (image_tensor, mask_tensor)
 
 
 # MARK: - Dataset
 class PlaneDataset(data.Dataset):
-    def __init__(self, set_name: typing.Literal["train", "val", "test"], data_dict_list: typing.List[typing.Dict]):
+    def __init__(self, set_name: typing.Literal["train", "val", "test"], data_dict_list: typing.List[typing.Dict], patch_width: int, patch_height: int):
         self.set_name = set_name
 
-        self.images: typing.Dict[str, Image.Image] = {info_dict[constant.detectron.FILENAME_KEY]: Image.open(info_dict[constant.detectron.FILENAME_KEY]) for info_dict in data_dict_list}
+        self.images: typing.Dict[str, Image.Image] = {info_dict[constant.detectron.FILENAME_KEY]: Image.open(info_dict[constant.detectron.FILENAME_KEY]) for info_dict in data_dict_list}    # `open` doesn't load the images into memory.
         """Cached PIL images."""
+        # Load all images into memory to prevent data loader worker contention of automatically loading images.
+        # Requires ~9GB of memory.
+        for image in tqdm.tqdm(self.images.values(), desc="Loaded training images", unit="images"):
+            image.load()
 
         self.filenames_and_annotations: typing.List[typing.Tuple[str, typing.List[int], typing.List[typing.List[int]]]] = []
         """(filename, bounding box, segmentation paths)"""
@@ -119,6 +136,13 @@ class PlaneDataset(data.Dataset):
                 segmentation_paths = annotation[constant.detectron.SEGMENTATION_PATH_KEY]
 
                 self.filenames_and_annotations.append((filename, b_box, segmentation_paths))
+
+        self.patch_width = patch_width
+        self.patch_height = patch_height
+
+    def __del__(self):
+        for _, image in self.images.items():
+            image.close()
 
     # You can change the value of length to a small number like 10 for debugging of your training procedure and over-fitting make sure to use the correct length for the final training.
 
@@ -150,7 +174,7 @@ class PlaneDataset(data.Dataset):
         image: Image.Image = full_image.crop((crop_x0, crop_y0, crop_x1, crop_y1))
         mask: Image.Image = full_segmentation_mask.crop((crop_x0, crop_y0, crop_x1, crop_y1))
 
-        image_tensor, mask_tensor = augment_training_image_and_mask(image, mask)
+        image_tensor, mask_tensor = augment_training_image_and_mask(image, mask, (self.patch_width, self.patch_height))
         return (image_tensor, mask_tensor)
 
 
