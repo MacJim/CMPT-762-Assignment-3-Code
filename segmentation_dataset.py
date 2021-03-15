@@ -82,8 +82,8 @@ def augment_training_image_and_mask(image: Image.Image, mask: Image.Image, size:
         image = image.convert("RGB")
 
     # Reshape.
-    image = image.resize(size)    # Default is `Image.BICUBIC`
-    mask = mask.resize(size, resample=Image.NEAREST)    # Mask: nearest
+    image = image.resize(size, Image.ANTIALIAS)    # Default is `Image.BICUBIC`, but `ANTIALIAS` (a.k.a. `LANCZOS`) is sharper.
+    mask = mask.resize(size, Image.NEAREST)    # Mask: nearest
 
     # To tensor.
     image_tensor = TF.to_tensor(image)
