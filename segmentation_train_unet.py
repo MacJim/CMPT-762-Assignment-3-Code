@@ -19,8 +19,8 @@ BATCH_SIZE: typing.Final = 4
 N_CLASSES: typing.Final = 1    # Binary classification: just use 1 out channel.
 N_EPOCHS: typing.Final = 200
 VAL_PERCENTAGE: typing.Final = 0.2
-INPUT_WIDTH: typing.Final = 384
-INPUT_HEIGHT: typing.Final = 384
+INPUT_WIDTH: typing.Final = 256
+INPUT_HEIGHT: typing.Final = 256
 CHECKPOINT_SAVE_DIR: typing.Final = "seg_output"
 CHECKPOINT_SAVE_EPOCH_INTERVAL: typing.Final = 10
 TRAIN_LOG_FILENAME: typing.Final = os.path.join(CHECKPOINT_SAVE_DIR, "loss_log.csv")
@@ -99,10 +99,10 @@ def main():
 
         with torch.no_grad():
             for image, mask in val_data_loader:
-                image = image.cuda()  # N, C, H, W
-                mask = mask.cuda()  # N, H, W
+                image = image.cuda()    # N, C, H, W
+                mask = mask.cuda()    # N, H, W
 
-                prediction = network(image)["out"]  # N, number of classes, H, W (shape unchanged)
+                prediction = network(image)    # N, number of classes, H, W (shape unchanged)
 
                 loss = loss_function(prediction, mask)
                 validation_loss += loss.item()
