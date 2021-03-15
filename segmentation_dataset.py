@@ -116,7 +116,7 @@ def augment_training_image_and_mask(image: Image.Image, mask: Image.Image, size:
 
 # MARK: - Dataset
 class PlaneDataset(data.Dataset):
-    def __init__(self, set_name: typing.Literal["train", "test"], data_dict_list: typing.List[typing.Dict], patch_width: int, patch_height: int):
+    def __init__(self, set_name: typing.Literal["train", "test"], data_dict_list: typing.List[typing.Dict], patch_width: int, patch_height: int, preload_images=True):
         self.set_name = set_name
 
         self.images: typing.Dict[str, Image.Image] = {info_dict[constant.detectron.FILENAME_KEY]: Image.open(info_dict[constant.detectron.FILENAME_KEY]) for info_dict in data_dict_list}    # `open` doesn't load the images into memory.
@@ -125,10 +125,11 @@ class PlaneDataset(data.Dataset):
         
         Although this dict is ordered, it acts as an unordered map.
         """
-        # Load all images into memory to prevent data loader worker contention of automatically loading images.
-        # Requires ~9GB of memory.
-        for image in tqdm.tqdm(self.images.values(), desc="Loaded train/validation images", unit="images"):
-            image.load()
+        if preload_images:
+            # Load all images into memory to prevent data loader worker contention of automatically loading images.
+            # Requires ~9GB of memory.
+            for image in tqdm.tqdm(self.images.values(), desc="Loaded train/validation images", unit="images"):
+                image.load()
 
         self.filenames_and_annotations: typing.List[typing.Tuple[str, typing.List[int], typing.List[typing.List[int]]]] = []
         """
