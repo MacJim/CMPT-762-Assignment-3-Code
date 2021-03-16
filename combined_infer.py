@@ -2,32 +2,78 @@
 Combines detection and segmentation.
 """
 
+import os
 import typing
+import csv
 
 import torch
 import pandas as pd
 import tqdm
 from detectron2.data import DatasetCatalog, MetadataCatalog
-import cv2
-from detectron2.engine import DefaultPredictor
+from torchvision.utils import save_image
+import torchvision.transforms.functional as TF
+from PIL import Image
 
 import constant.detectron
 from dataset import register_datasets
-from object_detection_config import get_naive_config
-from object_detection_inference import infer_image
+from segmentation_dataset import get_crop_coordinates
+from segmentation_infer_unet import infer_test_patch
 
 
 # MARK: - Combined inference
-cfg = get_naive_config(train=False)
-predictor = DefaultPredictor(cfg)
+OBJECT_PREDICTION_BOUNDING_BOXES_DIR: typing.Final = "/scratch/bounding_boxes"
 
 
 def get_prediction_mask(info_dict):
     filename = info_dict[constant.detectron.FILENAME_KEY]
 
-    # Object detection
-    cv_image = cv2.imread(filename)
-    pred_boxes, pred_scores = infer_image(predictor, cv_image)
+    # Object detection: load saved bounding box information.
+    base_filename = os.path.basename(filename)
+    base_filename_without_extension = os.path.splitext(base_filename)[0]
+    csv_filename = os.path.join(OBJECT_PREDICTION_BOUNDING_BOXES_DIR, base_filename_without_extension + ".csv")
+    with open(csv_filename, "r") as f:
+        r = csv.reader(f)
+        b_boxes = list(r)
+
+    # Create return value.
+    return_value = torch.zeros((info_dict[constant.detectron.HEIGHT_KEY], info_dict[constant.detectron.WIDTH_KEY]), dtype=torch.uint8)
+    # Somehow the `rle_encoding` is hard-coded to use cuda tensors, so I'll need to match.
+    return_value = return_value.cuda()
+
+    # Patch predictions.
+    for pred_box in b_boxes:
+        pred_box = [float(value) for value in pred_box]    # Convert from str to float.
+        pred_box = [int(round(value)) for value in pred_box]    # Convert from float to int.
+        crop_x0, crop_y0, crop_x1, crop_y1 = get_crop_coordinates(pred_box[0], int(pred_box[1]), pred_box[2] - pred_box[0], pred_box[3] - pred_box[1])
+        patch_prediction = infer_test_patch(filename, crop_x0, crop_y0, crop_x1, crop_y1)
+        patch_prediction = TF.resize(patch_prediction, (crop_y1 - crop_y0, crop_x1 - crop_x0), Image.NEAREST)    # Resize the prediction back to the original patch size.
+        patch_prediction = torch.squeeze(patch_prediction, 0)    # Remove the batch dimension.
+        # Remove out-of-boundary parts.
+        if (crop_x0 < 0):
+            delta = 0 - crop_x0
+            patch_prediction = patch_prediction[:, delta:]
+            crop_x0 = 0
+        if (crop_x1 > info_dict[constant.detectron.WIDTH_KEY]):
+            delta = crop_x1 - info_dict[constant.detectron.WIDTH_KEY]
+            patch_prediction = patch_prediction[:, :-delta]
+            crop_x1 = info_dict[constant.detectron.WIDTH_KEY]
+        if (crop_y0 < 0):
+            delta = 0 - crop_y0
+            patch_prediction = patch_prediction[delta:, :]
+            crop_y0 = 0
+        if (crop_y1 > info_dict[constant.detectron.HEIGHT_KEY]):
+            delta = crop_y1 - info_dict[constant.detectron.HEIGHT_KEY]
+            patch_prediction = patch_prediction[:-delta, :]
+            crop_y1 = info_dict[constant.detectron.HEIGHT_KEY]
+
+        return_value[crop_y0: crop_y1, crop_x0: crop_x1] = patch_prediction
+
+    # https://github.com/pytorch/vision/issues/1847
+    # Must convert to float tensor here.
+    return_value_visualization = return_value.float()
+    save_image(return_value_visualization, f"/tmp/predicted_masks/{base_filename}")
+
+    return return_value
 
 
 # MARK: - Notebook: Save to CSV
@@ -64,7 +110,8 @@ def save_results_to_csv():
     for i in tqdm.tqdm(range(len(my_data_list)), position=0, leave=True):
         sample = my_data_list[i]
         sample['image_id'] = sample['file_name'].split("/")[-1][:-4]
-        img, true_mask, pred_mask = get_prediction_mask(sample)
+        # img, true_mask, pred_mask = get_prediction_mask(sample)
+        pred_mask = get_prediction_mask(sample)
         inds = torch.unique(pred_mask)
         if (len(inds) == 1):
             preddic['ImageId'].append(sample['image_id'])
@@ -83,7 +130,8 @@ def save_results_to_csv():
     for i in tqdm.tqdm(range(len(my_data_list)), position=0, leave=True):
         sample = my_data_list[i]
         sample['image_id'] = sample['file_name'].split("/")[-1][:-4]
-        img, true_mask, pred_mask = get_prediction_mask(sample)
+        # img, true_mask, pred_mask = get_prediction_mask(sample)
+        pred_mask = get_prediction_mask(sample)
         inds = torch.unique(pred_mask)
         if (len(inds) == 1):
             preddic['ImageId'].append(sample['image_id'])
@@ -100,3 +148,7 @@ def save_results_to_csv():
     pred_file = open("{}/pred.csv".format(CSV_SAVE_DIR), 'w')
     pd.DataFrame(preddic).to_csv(pred_file, index=False)
     pred_file.close()
+
+
+if __name__ == '__main__':
+    save_results_to_csv()
