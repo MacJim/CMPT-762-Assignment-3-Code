@@ -22,6 +22,7 @@ from helper.patch import get_crop_patch_axes
 from helper.bounding_box import nms_xyxy
 
 
+# MARK: - Baseline model
 def main_baseline():
     dataset.register_datasets()
 
@@ -43,6 +44,34 @@ def main_baseline():
         save_visualization(out_filename, out_image)
 
 
+# MARK: - Naive model
+def infer_image(predictor, image_array):
+    pred_boxes = []
+    pred_scores = []
+
+    height, width, _ = image_array.shape
+    patch_coordinates = get_crop_patch_axes(width, height, 800, 800, 200)
+    for x0, x1, y0, y1 in patch_coordinates:
+        patch: np.ndarray = image_array[y0: y1, x0: x1, :]
+        output = predictor(patch)
+        # print(output)    # {'instances': Instances(num_instances=2, image_height=800, image_width=800, fields=[pred_boxes: Boxes(tensor([[410.2523, 573.4615, 471.7152, 646.4885], [302.6132, 605.7527, 362.5964, 678.7469]], device='cuda:0')), scores: tensor([0.9970, 0.9954], device='cuda:0'), pred_classes: tensor([0, 0], device='cuda:0')])}
+
+        patch_boxes: torch.Tensor = output["instances"].get("pred_boxes").tensor
+        patch_scores: torch.Tensor = output["instances"].get("scores")
+        for i in range(patch_boxes.shape[0]):
+            patch_box = patch_boxes[i].tolist()  # Format: x0, y0, x1, y1
+            patch_box = [patch_box[0] + x0, patch_box[1] + y0, patch_box[2] + x0, patch_box[3] + y0]
+            patch_score = patch_scores[i].item()
+
+            pred_boxes.append(patch_box)
+            pred_scores.append(patch_score)
+
+    # Apply NMS.
+    pred_boxes, pred_scores = nms_xyxy(pred_boxes, pred_scores)
+
+    return (pred_boxes, pred_scores)
+
+
 def main_naive():
     dataset.register_datasets()
 
@@ -56,30 +85,9 @@ def main_naive():
     for d in dataset_dicts:
         im: np.ndarray = cv2.imread(d[constant.detectron.FILENAME_KEY])
 
-        pred_boxes = []
-        pred_scores = []
-
-        height, width, _ = im.shape
-        patch_coordinates = get_crop_patch_axes(width, height, 800, 800, 200)
-        for x0, x1, y0, y1 in patch_coordinates:
-            patch: np.ndarray = im[y0: y1, x0: x1, :]
-            output = predictor(patch)
-            # print(output)    # {'instances': Instances(num_instances=2, image_height=800, image_width=800, fields=[pred_boxes: Boxes(tensor([[410.2523, 573.4615, 471.7152, 646.4885], [302.6132, 605.7527, 362.5964, 678.7469]], device='cuda:0')), scores: tensor([0.9970, 0.9954], device='cuda:0'), pred_classes: tensor([0, 0], device='cuda:0')])}
-
-            patch_boxes: torch.Tensor = output["instances"].get("pred_boxes").tensor
-            patch_scores: torch.Tensor = output["instances"].get("scores")
-            for i in range(patch_boxes.shape[0]):
-                patch_box = patch_boxes[i].tolist()    # Format: x0, y0, x1, y1
-                patch_box = [patch_box[0] + x0, patch_box[1] + y0, patch_box[2] + x0, patch_box[3] + y0]
-                patch_score = patch_scores[i].item()
-
-                pred_boxes.append(patch_box)
-                pred_scores.append(patch_score)
+        pred_boxes, pred_scores = infer_image(predictor, im)
 
         visualizer = Visualizer(im[:, :, ::-1], metadata=metadata_dict, scale=0.5, instance_mode=ColorMode.IMAGE_BW)
-
-        # Apply NMS.
-        pred_boxes, pred_scores = nms_xyxy(pred_boxes, pred_scores)
         for box in pred_boxes:
             out = visualizer.draw_box(box)
 
