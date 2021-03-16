@@ -137,6 +137,7 @@ class PlaneDataset(data.Dataset):
         
         This list is in the same order as `data_dict_list`.
         """
+        # TODO: Draw segmentation map.
         for info_dict in data_dict_list:
             filename = info_dict[constant.detectron.FILENAME_KEY]
             annotations = info_dict[constant.detectron.ANNOTATIONS_KEY]
@@ -192,7 +193,8 @@ class PlaneDataset(data.Dataset):
         full_image = self.images[filename]
         full_segmentation_mask = get_segmentation_mask(full_image.size, segmentation_path)
 
-        crop_x0, crop_y0, crop_x1, crop_y1 = get_crop_coordinates(b_box[0], b_box[1], b_box[2], b_box[3])
+        crop_padding_percentage = random.uniform(0.05, 0.15)
+        crop_x0, crop_y0, crop_x1, crop_y1 = get_crop_coordinates(b_box[0], b_box[1], b_box[2], b_box[3], padding_percentage=crop_padding_percentage)
         image: Image.Image = full_image.crop((crop_x0, crop_y0, crop_x1, crop_y1))
         mask: Image.Image = full_segmentation_mask.crop((crop_x0, crop_y0, crop_x1, crop_y1))
 
