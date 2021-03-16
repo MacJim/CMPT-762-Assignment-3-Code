@@ -21,12 +21,13 @@ from segmentation_dataset import PlaneDataset
 import segmentation_epoch_logger
 
 
-LEARNING_RATE: typing.Final = 0.001
+LEARNING_RATE: typing.Final = 0.006
 BATCH_SIZE: typing.Final = 4
+N_CLASSES: typing.Final = 1    # Binary classification: just use 1 out channel.
 N_EPOCHS: typing.Final = 200
-VAL_PERCENTAGE: typing.Final = 0.1
-INPUT_WIDTH: typing.Final = 384
-INPUT_HEIGHT: typing.Final = 384
+VAL_PERCENTAGE: typing.Final = 0.15
+INPUT_WIDTH: typing.Final = 256
+INPUT_HEIGHT: typing.Final = 256
 CHECKPOINT_SAVE_DIR: typing.Final = "seg_output"
 CHECKPOINT_SAVE_EPOCH_INTERVAL: typing.Final = 10
 TRAIN_LOG_FILENAME: typing.Final = os.path.join(CHECKPOINT_SAVE_DIR, "loss_log.csv")
@@ -46,7 +47,7 @@ def main():
         raise FileExistsError(f"Checkpoint save dir `{CHECKPOINT_SAVE_DIR}` is not a folder.")
 
     # MARK: Variables
-    network = models.segmentation.deeplabv3_resnet101(num_classes=2)
+    network = models.segmentation.deeplabv3_resnet101(num_classes=N_CLASSES)
     network = network.cuda()
 
     optimizer = optim.SGD(network.parameters(), lr=LEARNING_RATE, momentum=0.9, weight_decay=5e-4)
@@ -81,11 +82,10 @@ def main():
             mask = mask.cuda()    # N, H, W
 
             prediction = network(image)["out"]    # N, number of classes, H, W (shape unchanged)
-            # TODO: Do I simply use `argmax` here to obtain binary predictions?
-            softmax_prediction = F.softmax(prediction, dim=1)    # N, C, H, W, 0.0 ~ 1.0, torch.float32
-            foreground_prediction = softmax_prediction[:, 1, :, :]    # N, H, W, 0.0 ~ 1.0, torch.float32
+            prediction = torch.squeeze(prediction, 1)    # Eliminate the channel dimension since we only have 1 output channel.
+            prediction = torch.sigmoid(prediction)
 
-            loss = loss_function(foreground_prediction, mask)
+            loss = loss_function(prediction, mask)
 
             optimizer.zero_grad()
             loss.backward()
@@ -113,11 +113,10 @@ def main():
                 mask = mask.cuda()  # N, H, W
 
                 prediction = network(image)["out"]  # N, number of classes, H, W (shape unchanged)
-                # TODO: Do I simply use `argmax` here to obtain binary predictions?
-                softmax_prediction = F.softmax(prediction, dim=1)  # N, C, H, W, 0.0 ~ 1.0, torch.float32
-                foreground_prediction = softmax_prediction[:, 1, :, :]  # N, H, W, 0.0 ~ 1.0, torch.float32
+                prediction = torch.squeeze(prediction, 1)  # Eliminate the channel dimension since we only have 1 output channel.
+                prediction = torch.sigmoid(prediction)
 
-                loss = loss_function(foreground_prediction, mask)
+                loss = loss_function(prediction, mask)
                 validation_loss += loss.item()
                 validation_count += image.shape[0]
 
