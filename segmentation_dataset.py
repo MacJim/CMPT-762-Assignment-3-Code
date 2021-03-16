@@ -6,6 +6,8 @@
 
 import typing
 import random
+import multiprocessing
+from collections import defaultdict
 
 import torch
 import torch.utils.data as data
@@ -54,9 +56,9 @@ def get_crop_coordinates(crop_x0: int, crop_y0: int, crop_width: int, crop_heigh
     return (crop_x0, crop_y0, crop_x1, crop_y1)
 
 
-def get_segmentation_mask(size: typing.Tuple[int, int], segmentation_paths: typing.List[typing.List[int]]) -> Image.Image:
+def draw_segmentation_mask(size: typing.Tuple[int, int], segmentation_paths: typing.List[typing.List[int]]) -> Image.Image:
     """
-    Get segmentation mask.
+    Draw the segmentation mask.
 
     :param size: Size of the mask in PIL format: (width, height)
     :param segmentation_paths: Segmentation paths: A list of [(x, y), (x, y), ...] or [x, y, x, y, ...]
@@ -68,6 +70,12 @@ def get_segmentation_mask(size: typing.Tuple[int, int], segmentation_paths: typi
         draw.polygon(segmentation_path, fill=1)
 
     return mask
+
+
+def _draw_mask_and_save_to_dict_worker(filename: str, segmentation_paths: typing.List[typing.List[int]], segmentation_masks_dict):
+    image = Image.open(filename)
+    mask_image = draw_segmentation_mask(image.size, segmentation_paths)
+    segmentation_masks_dict[filename] = mask_image
 
 
 # MARK: - Data augmentation/transform
@@ -116,6 +124,24 @@ def augment_training_image_and_mask(image: Image.Image, mask: Image.Image, size:
 
 # MARK: - Dataset
 class PlaneDataset(data.Dataset):
+    def _draw_segmentation_masks(self):
+        filenames_and_all_paths: typing.DefaultDict[str, typing.List[typing.List[int]]] = defaultdict(list)
+        """
+        (filename, paths from all bounding boxes)
+        """
+        for filename, _, segmentation_paths in self.filenames_and_annotations:
+            filenames_and_all_paths[filename] += segmentation_paths
+
+        # Draw masks
+        manager = multiprocessing.Manager()
+        return_dict = manager.dict()
+
+        with multiprocessing.Pool() as p:
+            # This is very fast. I really wonder if multiple processes are really needed.
+            p.starmap(_draw_mask_and_save_to_dict_worker, [(filename, paths, return_dict) for filename, paths in filenames_and_all_paths.items()])
+
+        self.segmentation_masks = return_dict
+
     def __init__(self, set_name: typing.Literal["train", "test"], data_dict_list: typing.List[typing.Dict], patch_width: int, patch_height: int, preload_images=True):
         self.set_name = set_name
 
@@ -137,7 +163,6 @@ class PlaneDataset(data.Dataset):
         
         This list is in the same order as `data_dict_list`.
         """
-        # TODO: Draw segmentation map.
         for info_dict in data_dict_list:
             filename = info_dict[constant.detectron.FILENAME_KEY]
             annotations = info_dict[constant.detectron.ANNOTATIONS_KEY]
@@ -147,16 +172,16 @@ class PlaneDataset(data.Dataset):
 
                 self.filenames_and_annotations.append((filename, b_box, segmentation_paths))
 
-        # Do not shuffle here. Use `data.random_split` to shuffle and split train/validation.
-        # random.shuffle(self.filenames_and_annotations)    # Shuffles in place.
+        self.segmentation_masks = {}
+        """
+        Cached segmentation masks.
+        
+        Although this dict is ordered, it acts as an unordered map.
+        """
+        self._draw_segmentation_masks()
 
         self.patch_width = patch_width
         self.patch_height = patch_height
-
-        # total_len = len(self.filenames_and_annotations)
-        # self.validation_set_len = int(total_len * validation_percentage)
-        # self.training_set_len = total_len - self.validation_set_len
-        # print(f"Training patches: total: {total_len}, train: {self.training_set_len}, val: {self.validation_set_len}")
 
     def __del__(self):
         for _, image in self.images.items():
@@ -191,7 +216,7 @@ class PlaneDataset(data.Dataset):
         filename, b_box, segmentation_path = self.filenames_and_annotations[idx]
 
         full_image = self.images[filename]
-        full_segmentation_mask = get_segmentation_mask(full_image.size, segmentation_path)
+        full_segmentation_mask = self.segmentation_masks[filename]
 
         crop_padding_percentage = random.uniform(0.05, 0.15)
         crop_x0, crop_y0, crop_x1, crop_y1 = get_crop_coordinates(b_box[0], b_box[1], b_box[2], b_box[3], padding_percentage=crop_padding_percentage)
