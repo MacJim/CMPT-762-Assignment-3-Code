@@ -147,7 +147,7 @@ def nms_xyxy(pred_boxes: typing.List[typing.List[float]], pred_scores: typing.Li
 
 
 # MARK: - Combine
-def combine_bounding_boxes_naively_xyxy(pred_boxes: typing.List[typing.List[float]], pred_scores: typing.List[float], nms_iou_threshold=0.5):
+def combine_bounding_boxes_naively_xyxy(pred_boxes: typing.List[typing.List[float]], nms_iou_threshold=0.8):
     """
     Combine a set of possibly duplicate bounding boxes into 1.
 
@@ -161,5 +161,29 @@ def combine_bounding_boxes_naively_xyxy(pred_boxes: typing.List[typing.List[floa
     # 1
     retained_boxes = []
     for box in pred_boxes:
+        intersection_found = False
+
         for existing_box in retained_boxes:
-            pass
+            # Check if current box is contained in another box, or vice versa.
+            intersection_x0 = max(box[0], existing_box[0])
+            intersection_y0 = max(box[1], existing_box[1])
+            intersection_x1 = min(box[2], existing_box[2])
+            intersection_y1 = min(box[3], existing_box[3])
+
+            if ((intersection_x0 >= intersection_x1) or (intersection_y0 >= intersection_y1)):
+                # No intersection.
+                continue
+
+            if ((get_iou_xyxy(intersection_x0, intersection_y0, intersection_x1, intersection_y1, box[0], box[1], box[2], box[3]) > nms_iou_threshold) or (get_iou_xyxy(intersection_x0, intersection_y0, intersection_x1, intersection_y1, existing_box[0], existing_box[1], existing_box[2], existing_box[3]))):
+                # One box's mostly inside another box.
+                existing_box[0] = min(box[0], existing_box[0])
+                existing_box[1] = min(box[1], existing_box[1])
+                existing_box[2] = max(box[2], existing_box[2])
+                existing_box[3] = max(box[3], existing_box[3])
+                intersection_found = True
+                break
+
+        if not intersection_found:
+            retained_boxes.append(box)
+
+    return retained_boxes
