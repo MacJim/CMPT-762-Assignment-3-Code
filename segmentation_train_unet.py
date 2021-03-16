@@ -14,11 +14,11 @@ from helper.loss_function import binary_cross_entropy_dice_loss
 import tqdm
 
 
-LEARNING_RATE: typing.Final = 0.001
+LEARNING_RATE: typing.Final = 0.006
 BATCH_SIZE: typing.Final = 4
 N_CLASSES: typing.Final = 1    # Binary classification: just use 1 out channel.
-N_EPOCHS: typing.Final = 200
-VAL_PERCENTAGE: typing.Final = 0.2
+N_EPOCHS: typing.Final = 300
+VAL_PERCENTAGE: typing.Final = 0.15
 INPUT_WIDTH: typing.Final = 256
 INPUT_HEIGHT: typing.Final = 256
 CHECKPOINT_SAVE_DIR: typing.Final = "seg_output"
