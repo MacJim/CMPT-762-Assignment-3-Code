@@ -6,6 +6,8 @@ Detectron2 model input/output documentation: https://detectron2.readthedocs.io/e
 
 import os
 import random
+import csv
+import itertools
 
 from detectron2.data import DatasetCatalog, MetadataCatalog
 from detectron2.engine import DefaultPredictor
@@ -78,11 +80,12 @@ def main_naive():
     cfg = get_naive_config(train=False)
     predictor = DefaultPredictor(cfg)
 
-    dataset_dicts = DatasetCatalog.get(constant.detectron.TEST_DATASET_NAME)
+    train_dataset_dicts = DatasetCatalog.get(constant.detectron.TRAIN_DATASET_NAME)
+    test_dataset_dicts = DatasetCatalog.get(constant.detectron.TEST_DATASET_NAME)
     metadata_dict = MetadataCatalog.get(constant.detectron.TEST_DATASET_NAME)
 
     # for _, d in enumerate(random.sample(dataset_dicts, 1)):
-    for d in dataset_dicts:
+    for d in itertools.chain(train_dataset_dicts, test_dataset_dicts):
         im: np.ndarray = cv2.imread(d[constant.detectron.FILENAME_KEY])
 
         pred_boxes, pred_scores = infer_image(predictor, im)
@@ -95,6 +98,13 @@ def main_naive():
         base_filename = os.path.basename(d[constant.detectron.FILENAME_KEY])
         out_filename = os.path.join("/tmp/object_detection_inference", base_filename)
         save_visualization(out_filename, out_image)
+
+        base_filename_without_extension = os.path.splitext(base_filename)[0]
+        bounding_boxes_out_filename = os.path.join("/scratch/bounding_boxes", base_filename_without_extension + ".csv")
+        with open(bounding_boxes_out_filename, "w") as f:
+            w = csv.writer(f, quoting=csv.QUOTE_ALL)
+            for box in pred_boxes:
+                w.writerow(box)
 
 
 if __name__ == '__main__':
