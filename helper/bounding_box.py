@@ -160,6 +160,7 @@ def combine_bounding_boxes_naively_xyxy(pred_boxes: typing.List[typing.List[floa
     """
     # 1
     retained_boxes = []
+    pred_boxes = sorted(pred_boxes, key=lambda x: ((x[3] - x[1]) * (x[2] - x[0])), reverse=True)
     for box in pred_boxes:
         intersection_found = False
 

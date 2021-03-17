@@ -1,7 +1,8 @@
 import os
 import unittest
+import csv
 
-from bounding_box import get_iou_xywh, crop_bounding_box_xywh, get_containing_bounding_box_xyxy, nms_xyxy
+from bounding_box import get_iou_xywh, crop_bounding_box_xywh, get_containing_bounding_box_xyxy, nms_xyxy, combine_bounding_boxes_naively_xyxy
 
 
 class IoUTestCase (unittest.TestCase):
@@ -119,6 +120,23 @@ class NMSTestCase (unittest.TestCase):
         scores = [0.9, 0.7, 0.8, 0.8]
         result = nms_xyxy(boxes, scores)
         self.assertEqual(result, ([[0, 0, 10, 10], [12, 12, 14, 14]], [0.9, 0.7]))
+
+    def test_combine_bounding_boxes_naively_xyxy(self):
+        with open("/scratch/bounding_boxes/P1128.csv", "r") as f:
+            reader = csv.reader(f)
+            b_boxes = list(reader)
+            b_boxes = [[float(value) for value in pred_box] for pred_box in b_boxes]
+            b_boxes = [[int(round(value)) for value in pred_box] for pred_box in b_boxes]
+
+            print("Originals:")
+            for b_box in b_boxes:
+                print(b_box)
+
+            b_boxes = combine_bounding_boxes_naively_xyxy(b_boxes)
+
+            print("Combined:")
+            for b_box in b_boxes:
+                print(b_box)
 
 
 if __name__ == '__main__':
