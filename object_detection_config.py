@@ -281,7 +281,7 @@ def get_mask_r_cnn_config(train=True) -> detectron2.config.config.CfgNode:
     cfg.SOLVER.STEPS = (200,)    # Learning rate scheduling
     cfg.SOLVER.BASE_LR = 0.00025
     cfg.SOLVER.MOMENTUM = 0.9
-    cfg.SOLVER.MAX_ITER = 1000
+    cfg.SOLVER.MAX_ITER = 3000
     cfg.SOLVER.CHECKPOINT_PERIOD = 100    # Save a checkpoint after every this number of iterations.
     cfg.SOLVER.IMS_PER_BATCH = 3    # Batch size: images per batch
 

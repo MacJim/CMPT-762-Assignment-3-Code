@@ -16,7 +16,7 @@ import cv2
 import numpy as np
 import torch
 
-from object_detection_config import get_baseline_config, get_naive_config
+from object_detection_config import get_baseline_config, get_naive_config, get_mask_r_cnn_config
 import dataset
 import constant.detectron
 from helper.visualization import save_visualization
@@ -47,7 +47,7 @@ def main_baseline():
 
 
 # MARK: - Naive model
-def infer_image(predictor, image_array):
+def infer_image_naive(predictor, image_array):
     pred_boxes = []
     pred_scores = []
 
@@ -88,7 +88,7 @@ def main_naive():
     for d in itertools.chain(train_dataset_dicts, test_dataset_dicts):
         im: np.ndarray = cv2.imread(d[constant.detectron.FILENAME_KEY])
 
-        pred_boxes, pred_scores = infer_image(predictor, im)
+        pred_boxes, pred_scores = infer_image_naive(predictor, im)
 
         visualizer = Visualizer(im[:, :, ::-1], metadata=metadata_dict, scale=0.5, instance_mode=ColorMode.IMAGE_BW)
         for box in pred_boxes:
@@ -107,9 +107,86 @@ def main_naive():
                 w.writerow(box)
 
 
+# MARK: - Mask R-CNN Model
+def infer_image_mask_r_cnn(predictor, image_array):
+    pred_boxes = []
+    pred_scores = []
+
+    height, width, _ = image_array.shape
+
+    aggregated_mask = torch.zeros((height, width), dtype=torch.int)
+    current_category = 1
+
+    patch_coordinates = get_crop_patch_axes(width, height, 800, 800, 200)
+    for x0, x1, y0, y1 in patch_coordinates:
+        patch: np.ndarray = image_array[y0: y1, x0: x1, :]
+        output = predictor(patch)
+
+        patch_boxes: torch.Tensor = output["instances"].get("pred_boxes").tensor
+        patch_scores: torch.Tensor = output["instances"].get("scores")
+        pred_masks: torch.Tensor = output["instances"].get("pred_masks")
+        for i in range(patch_boxes.shape[0]):
+            patch_box = patch_boxes[i].tolist()  # Format: x0, y0, x1, y1
+            patch_box = [patch_box[0] + x0, patch_box[1] + y0, patch_box[2] + x0, patch_box[3] + y0]
+            pred_boxes.append(patch_box)
+
+            patch_score = patch_scores[i].item()
+            pred_scores.append(patch_score)
+
+            pred_mask = pred_masks[i]
+            aggregated_mask[y0: y1, x0: x1][pred_mask] = current_category
+            current_category += 1
+
+            patch_boxes[i] = torch.Tensor([patch_box[0] + x0, patch_box[1] + y0, patch_box[2] + x0, patch_box[3] + y0])
+
+    # Apply NMS.
+    pred_boxes, pred_scores = nms_xyxy(pred_boxes, pred_scores)
+
+    return (pred_boxes, aggregated_mask)
+
+
+def main_mask_r_cnn():
+    dataset.register_datasets()
+
+    cfg = get_mask_r_cnn_config(train=False)
+    predictor = DefaultPredictor(cfg)
+
+    test_dataset_dicts = DatasetCatalog.get(constant.detectron.TEST_DATASET_NAME)
+    metadata_dict = MetadataCatalog.get(constant.detectron.TEST_DATASET_NAME)
+
+    for d in test_dataset_dicts:
+        im: np.ndarray = cv2.imread(d[constant.detectron.FILENAME_KEY])
+
+        pred_boxes, aggregated_mask = infer_image_mask_r_cnn(predictor, im)
+
+        visualizer = Visualizer(im[:, :, ::-1], metadata=metadata_dict, scale=0.5, instance_mode=ColorMode.IMAGE_BW)
+
+        for current_category in range(1, torch.max(aggregated_mask)):
+            current_category_mask = torch.zeros(aggregated_mask.shape, dtype=torch.uint8)
+            current_category_mask[aggregated_mask == current_category] = 1
+            current_category_mask = current_category_mask.numpy()
+            out = visualizer.draw_binary_mask(current_category_mask)
+
+        for box in pred_boxes:
+            out = visualizer.draw_box(box)
+
+        out_image = out.get_image()[:, :, ::-1]
+        base_filename = os.path.basename(d[constant.detectron.FILENAME_KEY])
+        out_filename = os.path.join("/tmp/object_detection_inference", base_filename)
+        save_visualization(out_filename, out_image)
+
+        # base_filename_without_extension = os.path.splitext(base_filename)[0]
+        # bounding_boxes_out_filename = os.path.join("/scratch/bounding_boxes", base_filename_without_extension + ".csv")
+        # with open(bounding_boxes_out_filename, "w") as f:
+        #     w = csv.writer(f, quoting=csv.QUOTE_ALL)
+        #     for box in pred_boxes:
+        #         w.writerow(box)
+
+
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     print(f"Working directory: {os.getcwd()}")
 
     # main_baseline()
-    main_naive()
+    # main_naive()
+    main_mask_r_cnn()
