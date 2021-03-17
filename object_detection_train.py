@@ -3,7 +3,7 @@ import os
 from detectron2.engine import DefaultTrainer
 
 import dataset
-from object_detection_config import get_baseline_config, NaiveTrainer
+from object_detection_config import get_baseline_config, NaiveTrainer, MaskRCNNTrainer
 
 
 # MARK: - Main
@@ -30,6 +30,14 @@ def main_naive():
     trainer.train()  # Run training.
 
 
+def main_mask_r_cnn():
+    dataset.register_datasets()
+
+    trainer = MaskRCNNTrainer()
+    trainer.resume_or_load(resume=False)
+    trainer.train()
+
+
 if __name__ == '__main__':
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     print(f"Working directory: {os.getcwd()}")
@@ -46,4 +54,5 @@ if __name__ == '__main__':
     # args = parser.parse_args()
 
     # main_baseline()
-    main_naive()
+    # main_naive()
+    main_mask_r_cnn()

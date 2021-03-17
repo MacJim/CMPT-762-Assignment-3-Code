@@ -23,6 +23,7 @@ import constant.detectron
 import helper.bounding_box
 import helper.segmentation_path
 from helper.bounding_box import get_iou_xyxy, crop_bounding_box_xywh
+from helper.segmentation_path import fit_segmentation_path_in_crop_box
 
 
 # MARK: - Output dir manipulation
@@ -164,16 +165,19 @@ class NaiveTrainer (DefaultTrainer):
     - https://detectron2.readthedocs.io/en/latest/modules/engine.html#detectron2.engine.defaults.DefaultTrainer
     - https://github.com/facebookresearch/detectron2/blob/master/projects/DeepLab/train_net.py
     """
-    def __init__(self):
-        super(NaiveTrainer, self).__init__(get_naive_config(True))
+    def __init__(self, cfg=None):
+        if not cfg:
+            cfg = get_naive_config(True)
+        super(NaiveTrainer, self).__init__(cfg)
 
     @classmethod
     def build_train_loader(cls, cfg):
         def naive_mapper(dataset_dict: typing.Dict[str, typing.Any]):
             """
-            Naively calls the default mapper.
+            Calls the default mapper.
 
-            TODO: This solution has a major flaw: segmentation boxes may be cut and make the object in it incomplete.
+            This method is called "naive" due to historical reasons.
+            It is now very complicated.
 
             :param dataset_dict:
             :return:
@@ -236,109 +240,54 @@ class NaiveTrainer (DefaultTrainer):
 
             return return_value
 
-            # # Identify bounding boxes that are cropped too much.
-            # instances = return_value["instances"]    # Instances(num_instances=2, image_height=800, image_width=800, fields=[gt_boxes: Boxes(tensor([[  0.,  33., 236., 241.], [  0., 722., 242., 800.]])), gt_classes: tensor([0, 0])])
-            # patch_boxes: torch.Tensor = instances.get("gt_boxes").tensor
-            #
-            # new_patch_boxes_list = []
-            # for i in range(patch_boxes.shape[0]):
-            #     patch_box = patch_boxes[i].tolist()    # Format: x0, y0, x1, y1
-            #     restored_patch_box = [patch_box[0] + crop_x0, patch_box[1] + crop_y0, patch_box[2] + crop_x0, patch_box[3] + crop_y0]    # Format: x0, y0, x1, y1
-            #     max_iou = 0.0
-            #     for annotation in dataset_dict[constant.detectron.ANNOTATIONS_KEY]:
-            #         if constant.detectron.B_BOX_KEY not in annotation:
-            #             continue
-            #
-            #         original_b_box = annotation[constant.detectron.B_BOX_KEY]    # Format: x0, y0, w, h
-            #         iou = get_iou_xyxy(restored_patch_box[0], restored_patch_box[1], restored_patch_box[2], restored_patch_box[3], original_b_box[0], original_b_box[1], original_b_box[0] + original_b_box[2], original_b_box[1] + original_b_box[3])
-            #         max_iou = max(iou, max_iou)
-            #
-            #     if (max_iou >= NAIVE_CROP_B_BOX_IOU_THRESHOLD):
-            #         new_patch_boxes_list.append(patch_box)
-            #
-            # if new_patch_boxes_list:
-            #     new_patch_boxes = torch.tensor(new_patch_boxes_list)
-            #     new_gt_classes = torch.zeros((len(new_patch_boxes_list)))    # We only have one class, thus we directly use 0 here.
-            # else:
-            #     # We still need the secondary shape.
-            #     new_patch_boxes = torch.zeros((0, 4))
-            #     new_gt_classes = torch.zeros((0,))
-            #
-            # # Create a new `Instances` object based on the retained bounding boxes.
-            # new_instances = detectron2.structures.Instances((crop_height, crop_width))
-            # new_instances.set("gt_boxes", detectron2.structures.Boxes(new_patch_boxes))
-            # new_instances.set("gt_classes", new_gt_classes)
-            #
-            # return_value["instances"] = new_instances
-            #
-            # return return_value
-
         data_loader = build_detection_train_loader(cfg, mapper=naive_mapper)
         return data_loader
 
-    @classmethod
-    def build_train_loader_legacy(cls, cfg: detectron2.config.config.CfgNode) -> typing.Iterable:
-        """
-        https://detectron2.readthedocs.io/en/latest/tutorials/data_loading.html
-        """
-        def custom_mapper(dataset_dict: typing.Dict[str, typing.Any]):
-            dataset_dict = copy.deepcopy(dataset_dict)    # Avoid contaminating the original dict
-            filename = dataset_dict[constant.detectron.FILENAME_KEY]
 
-            # Read image.
-            # image = detection_utils.read_image(filename)    # np.ndarray, channel last, seems to be the original resolution, inconvenient
-            image: Image.Image = Image.open(filename)
-            width, height = image.size    # At this time, `width` equals `dataset_dict["width"]`, `height` equals `dataset_dict["height"]`
-            # print(width, height, dataset_dict["width"], dataset_dict["height"])
+# MARK: - Mask R-CNN config and dataloader
+MASK_R_CNN_MODEL_YML: typing.Final = "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"
 
-            # Crop image.
-            max_x0 = width - NAIVE_CROP_PATCH_WIDTH
-            max_y0 = height - NAIVE_CROP_PATCH_HEIGHT
+MASK_R_CNN_OUTPUT_DIR: typing.Final = "mask_r_cnn_output"    # Want to make this different from the naive output dir.
 
-            if (max_x0 >= 0):
-                x0 = random.randint(0, max_x0)
-                x1 = x0 + NAIVE_CROP_PATCH_WIDTH
-            else:
-                x0 = 0
-                x1 = width - 1
 
-            if (max_y0 >= 0):
-                y0 = random.randint(0, max_y0)
-                y1 = y0 + NAIVE_CROP_PATCH_HEIGHT
-            else:
-                y0 = 0
-                y1 = height - 1
+def get_mask_r_cnn_config(train=True) -> detectron2.config.config.CfgNode:
+    if (train):
+        _create_output_dir(MASK_R_CNN_OUTPUT_DIR)
+    else:
+        final_checkpoint_filename = _get_final_checkpoint_filename(MASK_R_CNN_OUTPUT_DIR)
 
-            image: Image.Image = image.crop((x0, y0, x1, y1))
+    # Create configuration.
+    cfg = detectron2.config.get_cfg()  # This is just a copy of the default config.
 
-            # Crop bounding boxes and segmentations.
-            cropped_annotations = []
-            for annotation in dataset_dict[constant.detectron.ANNOTATIONS_KEY]:
-                b_box = annotation[constant.detectron.B_BOX_KEY]
-                cropped_b_box = helper.bounding_box.crop_bounding_box_xywh(b_box[0], b_box[1], b_box[2], b_box[3], x0, y0, x1 - x0, y1 - y0, NAIVE_CROP_B_BOX_IOU_THRESHOLD)
-                if not cropped_b_box:
-                    continue
+    cfg.merge_from_file(model_zoo.get_config_file(MASK_R_CNN_MODEL_YML))
 
-                segmentations = annotation[constant.detectron.SEGMENTATION_PATH_KEY]
-                cropped_segmentations = [helper.segmentation_path.fit_segmentation_path_in_crop_box(s, x0, y0, x1 - x0, y1 - y0) for s in segmentations]
+    cfg.OUTPUT_DIR = MASK_R_CNN_OUTPUT_DIR
 
-                cropped_annotation = copy.deepcopy(annotation)
-                cropped_annotation[constant.detectron.B_BOX_KEY] = list(cropped_b_box)    # By default, `cropped_b_box` is a tuple.
-                cropped_annotation[constant.detectron.SEGMENTATION_PATH_KEY] = cropped_segmentations
-                cropped_annotations.append(cropped_annotation)
+    cfg.DATASETS.TRAIN = (constant.detectron.TRAIN_DATASET_NAME,)
+    cfg.DATASETS.TEST = (constant.detectron.TEST_DATASET_NAME,)
+    cfg.DATALOADER.NUM_WORKERS = 4
 
-            # Convert to model input format.
-            image_tensor: torch.Tensor = TF.to_tensor(image)
-            annotation_instances = detection_utils.annotations_to_instances(cropped_annotations, (y1 - y0, x1 - x0))
+    cfg.MODEL.BACKBONE.FREEZE_AT = 2    # TODO: Do I freeze the first few stages?
+    cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512    # Number of regions per image used to train RPN (Region Proposal Network)
+    cfg.MODEL.ROI_HEADS.NUM_CLASSES = 1    # We only have a single plane class
+    cfg.MODEL.PIXEL_STD = [57.375, 57.120, 58.395]    # ImageNet std
+    if train:
+        cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(MASK_R_CNN_MODEL_YML)    # I don't know. Maybe loading a pre-trained model helps.
+    else:
+        cfg.MODEL.WEIGHTS = final_checkpoint_filename
+        cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
 
-            return {
-                "image": image_tensor,
-                "instances": annotation_instances,
-                constant.detectron.FILENAME_KEY: filename,
-                constant.detectron.WIDTH_KEY: (x1 - x0),
-                constant.detectron.HEIGHT_KEY: (y1 - y0),
-                constant.detectron.IMAGE_ID_KEY: dataset_dict[constant.detectron.IMAGE_ID_KEY],
-            }
+    cfg.SOLVER.LR_SCHEDULER_NAME = "WarmupCosineLR"
+    cfg.SOLVER.STEPS = (200,)    # Learning rate scheduling
+    cfg.SOLVER.BASE_LR = 0.00025
+    cfg.SOLVER.MOMENTUM = 0.9
+    cfg.SOLVER.MAX_ITER = 1000
+    cfg.SOLVER.CHECKPOINT_PERIOD = 100    # Save a checkpoint after every this number of iterations.
+    cfg.SOLVER.IMS_PER_BATCH = 3    # Batch size: images per batch
 
-        data_loader = build_detection_train_loader(cfg, mapper=custom_mapper)
-        return data_loader
+    return cfg
+
+
+class MaskRCNNTrainer (NaiveTrainer):
+    def __init__(self):
+        super(MaskRCNNTrainer, self).__init__(get_mask_r_cnn_config(True))
