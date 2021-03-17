@@ -9,6 +9,7 @@ from torch import nn
 class VGGBlock(nn.Module):
     def __init__(self, in_channels, middle_channels, out_channels):
         super().__init__()
+
         self.relu = nn.ReLU(inplace=True)
         self.conv1 = nn.Conv2d(in_channels, middle_channels, 3, padding=1)
         self.bn1 = nn.BatchNorm2d(middle_channels)
@@ -28,13 +29,13 @@ class VGGBlock(nn.Module):
 
 
 class UNet(nn.Module):
-    def __init__(self, num_classes, input_channels=3, **kwargs):
+    def __init__(self, n_classes, input_channels=3, **kwargs):
         super().__init__()
 
         nb_filter = [32, 64, 128, 256, 512]
 
         self.pool = nn.MaxPool2d(2, 2)
-        self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
 
         self.conv0_0 = VGGBlock(input_channels, nb_filter[0], nb_filter[0])
         self.conv1_0 = VGGBlock(nb_filter[0], nb_filter[1], nb_filter[1])
@@ -42,12 +43,12 @@ class UNet(nn.Module):
         self.conv3_0 = VGGBlock(nb_filter[2], nb_filter[3], nb_filter[3])
         self.conv4_0 = VGGBlock(nb_filter[3], nb_filter[4], nb_filter[4])
 
-        self.conv3_1 = VGGBlock(nb_filter[3]+nb_filter[4], nb_filter[3], nb_filter[3])
-        self.conv2_2 = VGGBlock(nb_filter[2]+nb_filter[3], nb_filter[2], nb_filter[2])
-        self.conv1_3 = VGGBlock(nb_filter[1]+nb_filter[2], nb_filter[1], nb_filter[1])
-        self.conv0_4 = VGGBlock(nb_filter[0]+nb_filter[1], nb_filter[0], nb_filter[0])
+        self.conv3_1 = VGGBlock(nb_filter[3] + nb_filter[4], nb_filter[3], nb_filter[3])
+        self.conv2_2 = VGGBlock(nb_filter[2] + nb_filter[3], nb_filter[2], nb_filter[2])
+        self.conv1_3 = VGGBlock(nb_filter[1] + nb_filter[2], nb_filter[1], nb_filter[1])
+        self.conv0_4 = VGGBlock(nb_filter[0] + nb_filter[1], nb_filter[0], nb_filter[0])
 
-        self.final = nn.Conv2d(nb_filter[0], num_classes, kernel_size=1)
+        self.final = nn.Conv2d(nb_filter[0], n_classes, kernel_size=1)
 
 
     def forward(self, input):
@@ -75,7 +76,7 @@ class NestedUNet(nn.Module):
         self.deep_supervision = deep_supervision
 
         self.pool = nn.MaxPool2d(2, 2)
-        self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
+        self.up = nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True)
 
         self.conv0_0 = VGGBlock(input_channels, nb_filter[0], nb_filter[0])
         self.conv1_0 = VGGBlock(nb_filter[0], nb_filter[1], nb_filter[1])

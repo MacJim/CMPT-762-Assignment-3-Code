@@ -15,7 +15,8 @@ from segmentation_dataset import PlaneDataset, TRANSFORM_MEAN, TRANSFORM_STD
 N_CLASSES: typing.Final = 1
 INPUT_WIDTH: typing.Final = 256
 INPUT_HEIGHT: typing.Final = 256
-CHECKPOINT_FILENAME: typing.Final = "../762A3-Checkpoints/seg_output_with_input_normalization/200.pth"
+# CHECKPOINT_FILENAME: typing.Final = "../762A3-Checkpoints/seg_output_with_input_normalization/240.pth"
+CHECKPOINT_FILENAME: typing.Final = "seg_output/240.pth"
 SAVE_DIR: typing.Final = "/tmp/seg_inference"
 
 
